@@ -1,9 +1,8 @@
 /**
  * Rent Tracker - Hurstville
- * GitHub Pages compatible with localStorage persistence
  */
 
-// ===== PRE-LOADED DATA (Parsed from "Rent for Hurstville.xlsx") =====
+// ===== PRE-LOADED DATA =====
 const defaultData = [
     { id: "27-Jan-2026", date: "27-Jan-2026", totalRent: 750, iPaid: 750, roommatePaid: 0, netPaid: 750, roommatePaidOn: null, status: "paid", notes: "Bond/Deposit/Advance paid" },
     { id: "2-Feb-2026", date: "2-Feb-2026", totalRent: 750, iPaid: 750, roommatePaid: null, netPaid: 750, roommatePaidOn: null, status: "paid", notes: "Roommate Electricity $770" },
@@ -13,7 +12,7 @@ const defaultData = [
     { id: "2-Mar-2026", date: "2-Mar-2026", totalRent: 750, iPaid: 750, roommatePaid: 385, netPaid: 365, roommatePaidOn: "6-Mar-2026", status: "paid", notes: "" },
     { id: "9-Mar-2026", date: "9-Mar-2026", totalRent: 750, iPaid: 750, roommatePaid: 385, netPaid: 365, roommatePaidOn: "13-Mar-2026", status: "paid", notes: "" },
     { id: "16-Mar-2026", date: "16-Mar-2026", totalRent: 750, iPaid: 750, roommatePaid: 385, netPaid: 365, roommatePaidOn: "20-Mar-2026", status: "paid", notes: "" },
-    { id: "23-Mar-2026", date: "23-Mar-2026", totalRent: 750, iPaid: null, roommatePaid: null, netPaid: 0, roommatePaidOn: "27-Mar-2026", status: "pending", notes: "" },
+    { id: "23-Mar-2027", date: "23-Mar-2026", totalRent: 750, iPaid: null, roommatePaid: null, netPaid: 0, roommatePaidOn: "27-Mar-2026", status: "pending", notes: "" },
     { id: "30-Mar-2026", date: "30-Mar-2026", totalRent: 750, iPaid: null, roommatePaid: null, netPaid: 0, roommatePaidOn: "3-Apr-2026", status: "pending", notes: "" },
     { id: "6-Apr-2026", date: "6-Apr-2026", totalRent: 750, iPaid: null, roommatePaid: null, netPaid: 0, roommatePaidOn: "10-Apr-2026", status: "pending", notes: "" },
     { id: "13-Apr-2026", date: "13-Apr-2026", totalRent: 750, iPaid: null, roommatePaid: null, netPaid: 0, roommatePaidOn: "17-Apr-2026", status: "pending", notes: "" },
@@ -61,11 +60,10 @@ const defaultData = [
     { id: "1-Feb-2027", date: "1-Feb-2027", totalRent: 750, iPaid: null, roommatePaid: null, netPaid: 0, roommatePaidOn: "5-Feb-2027", status: "pending", notes: "" }
 ];
 
-// ===== STATE MANAGEMENT =====
 const STORAGE_KEY = 'hurstville_rent_data';
 let currentData = [];
 
-// Load data from localStorage or use defaults
+// ===== LOAD/SAVE DATA (NO TOAST ON LOAD) =====
 const loadData = () => {
     try {
         const stored = localStorage.getItem(STORAGE_KEY);
@@ -81,7 +79,6 @@ const loadData = () => {
     }
 };
 
-// Save data to localStorage
 const saveData = () => {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData));
@@ -120,9 +117,7 @@ const formatDateForInput = (dateStr) => {
     return dateStr;
 };
 
-const generateId = () => {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
-};
+const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
 const getStatusBadge = (status, roommatePaidOn, iPaid) => {
     if (iPaid === null || iPaid === 0 || iPaid === '') {
@@ -133,7 +128,7 @@ const getStatusBadge = (status, roommatePaidOn, iPaid) => {
     return `<span class="status pending">⏳ Pending</span>`;
 };
 
-// ===== TOAST NOTIFICATIONS =====
+// ===== TOAST (ONLY FOR ACTIONS) =====
 const showToast = (message, type = 'success') => {
     const toast = document.getElementById('toast');
     const toastMessage = document.getElementById('toastMessage');
@@ -142,10 +137,10 @@ const showToast = (message, type = 'success') => {
     toastMessage.textContent = message;
     toast.className = 'toast';
     if (type) toast.classList.add(type);
-    toast.hidden = false;
+    toast.style.display = 'flex';
     
     setTimeout(() => {
-        toast.hidden = true;
+        toast.style.display = 'none';
     }, 3000);
 };
 
@@ -192,11 +187,11 @@ const renderTable = (data) => {
     
     if (data.length === 0) {
         tableBody.innerHTML = '';
-        if (emptyState) emptyState.hidden = false;
+        if (emptyState) emptyState.style.display = 'block';
         return;
     }
     
-    if (emptyState) emptyState.hidden = true;
+    if (emptyState) emptyState.style.display = 'none';
     
     tableBody.innerHTML = data.map((row) => {
         return `
@@ -209,14 +204,13 @@ const renderTable = (data) => {
             <td><small>${formatDate(row.roommatePaidOn)}</small></td>
             <td>${getStatusBadge(row.status, row.roommatePaidOn, row.iPaid)}</td>
             <td>
-                <button class="btn-action" data-id="${row.id}" onclick="openEditModal('${row.id}')">Edit</button>
-                <button class="btn-action delete" data-id="${row.id}" onclick="confirmDelete('${row.id}')">Delete</button>
+                <button class="btn-action" onclick="window.openEditModal('${row.id}')">Edit</button>
+                <button class="btn-action delete" onclick="window.confirmDelete('${row.id}')">Delete</button>
             </td>
         </tr>
     `}).join('');
 };
 
-// ===== MONTH FILTER =====
 const populateMonthFilter = (data) => {
     const monthFilter = document.getElementById('monthFilter');
     if (!monthFilter) return;
@@ -229,16 +223,12 @@ const populateMonthFilter = (data) => {
         const dateStr = String(row.date);
         const parts = dateStr.split('-');
         if (parts.length >= 3) {
-            const monthYear = `${parts[1]}-${parts[2]}`;
-            monthSet.add(monthYear);
-        } else if (parts.length === 2) {
-            monthSet.add(dateStr);
+            monthSet.add(`${parts[1]}-${parts[2]}`);
         }
     });
     
     const months = Array.from(monthSet).sort((a, b) => {
-        const monthsOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthsOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         const [monthA, yearA] = a.split('-');
         const [monthB, yearB] = b.split('-');
         if (yearA !== yearB) return parseInt(yearA) - parseInt(yearB);
@@ -262,20 +252,14 @@ const filterData = () => {
     const selectedMonth = monthFilter.value;
     
     const filtered = currentData.filter(row => {
-        const matchesSearch = !searchTerm || 
-            String(row.date).toLowerCase().includes(searchTerm) ||
-            String(row.status).toLowerCase().includes(searchTerm);
-        
-        const matchesMonth = selectedMonth === 'all' || 
-            String(row.date).includes(selectedMonth);
-        
+        const matchesSearch = !searchTerm || String(row.date).toLowerCase().includes(searchTerm);
+        const matchesMonth = selectedMonth === 'all' || String(row.date).includes(selectedMonth);
         return matchesSearch && matchesMonth;
     });
     
     renderTable(filtered);
 };
 
-// ===== EXPORT FUNCTION =====
 const exportSummary = () => {
     const totalWeeks = currentData.filter(row => row.date && row.date !== '-').length;
     const totalRent = currentData.reduce((sum, row) => sum + (row.totalRent || 0), 0);
@@ -299,7 +283,7 @@ const exportSummary = () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Summary');
     XLSX.writeFile(wb, `Rent-Summary-${new Date().toISOString().split('T')[0]}.xlsx`);
-    showToast('Summary exported successfully!', 'success');
+    showToast('Summary exported!', 'success');
 };
 
 // ===== MODAL FUNCTIONS =====
@@ -309,11 +293,7 @@ window.openAddModal = function() {
     const entryDate = document.getElementById('entryDate');
     const entryTotalRent = document.getElementById('entryTotalRent');
     
-    if (!modalOverlay) {
-        console.error('Modal overlay not found');
-        return;
-    }
-    
+    if (!modalOverlay) return;
     if (addEntryForm) addEntryForm.reset();
     if (entryDate) entryDate.valueAsDate = new Date();
     if (entryTotalRent) entryTotalRent.value = 750;
@@ -330,12 +310,8 @@ window.closeAddModal = function() {
 };
 
 window.openEditModal = function(id) {
-    console.log('Edit clicked for ID:', id);
     const editModalOverlay = document.getElementById('editModalOverlay');
-    if (!editModalOverlay) {
-        console.error('Edit modal not found');
-        return;
-    }
+    if (!editModalOverlay) return;
     
     const entry = currentData.find(item => item.id === id);
     if (!entry) {
@@ -403,23 +379,9 @@ window.saveNewEntry = function(e) {
     }
     
     let status = 'pending';
-    if (iPaid && iPaid > 0) {
-        status = 'paid';
-    }
+    if (iPaid && iPaid > 0) status = 'paid';
     
-    const newEntry = {
-        id: generateId(),
-        date,
-        totalRent,
-        iPaid,
-        roommatePaid,
-        netPaid,
-        roommatePaidOn,
-        status,
-        notes
-    };
-    
-    currentData.push(newEntry);
+    currentData.push({ id: generateId(), date, totalRent, iPaid, roommatePaid, netPaid, roommatePaidOn, status, notes });
     currentData.sort((a, b) => new Date(formatDateForInput(a.date)) - new Date(formatDateForInput(b.date)));
     
     saveData();
@@ -427,7 +389,7 @@ window.saveNewEntry = function(e) {
     populateMonthFilter(currentData);
     renderTable(currentData);
     window.closeAddModal();
-    showToast('Entry added successfully!', 'success');
+    showToast('Entry added!', 'success');
 };
 
 window.updateEntry = function(e) {
@@ -448,7 +410,6 @@ window.updateEntry = function(e) {
     
     const id = editEntryId.value;
     const index = currentData.findIndex(item => item.id === id);
-    
     if (index === -1) {
         showToast('Entry not found', 'error');
         return;
@@ -477,39 +438,24 @@ window.updateEntry = function(e) {
     }
     
     let status = 'pending';
-    if (iPaid && iPaid > 0) {
-        status = 'paid';
-    }
+    if (iPaid && iPaid > 0) status = 'paid';
     
-    currentData[index] = {
-        ...currentData[index],
-        date,
-        totalRent,
-        iPaid,
-        roommatePaid,
-        netPaid,
-        roommatePaidOn,
-        status,
-        notes
-    };
+    currentData[index] = { ...currentData[index], date, totalRent, iPaid, roommatePaid, netPaid, roommatePaidOn, status, notes };
     
     saveData();
     renderSummary(currentData);
     populateMonthFilter(currentData);
     renderTable(currentData);
     window.closeEditModal();
-    showToast('Entry updated successfully!', 'success');
+    showToast('Entry updated!', 'success');
 };
 
 let deleteTargetId = null;
 
 window.confirmDelete = function(id) {
-    console.log('Delete clicked for ID:', id);
     deleteTargetId = id;
     const deleteModalOverlay = document.getElementById('deleteModalOverlay');
-    if (deleteModalOverlay) {
-        deleteModalOverlay.style.display = 'flex';
-    }
+    if (deleteModalOverlay) deleteModalOverlay.style.display = 'flex';
 };
 
 window.closeDeleteModal = function() {
@@ -539,25 +485,15 @@ window.executeDelete = function() {
 
 // ===== SETUP EVENT LISTENERS =====
 const setupEventListeners = () => {
-    // Add Entry button
     const btnAddEntry = document.getElementById('btnAddEntry');
-    if (btnAddEntry) {
-        btnAddEntry.addEventListener('click', window.openAddModal);
-    }
+    if (btnAddEntry) btnAddEntry.addEventListener('click', window.openAddModal);
     
-    // Add from empty state
     const btnAddFromEmpty = document.getElementById('btnAddFromEmpty');
-    if (btnAddFromEmpty) {
-        btnAddFromEmpty.addEventListener('click', window.openAddModal);
-    }
+    if (btnAddFromEmpty) btnAddFromEmpty.addEventListener('click', window.openAddModal);
     
-    // Export button
     const btnExport = document.getElementById('btnExport');
-    if (btnExport) {
-        btnExport.addEventListener('click', exportSummary);
-    }
+    if (btnExport) btnExport.addEventListener('click', exportSummary);
     
-    // Close buttons
     const btnCloseModal = document.getElementById('btnCloseModal');
     if (btnCloseModal) btnCloseModal.addEventListener('click', window.closeAddModal);
     
@@ -579,60 +515,39 @@ const setupEventListeners = () => {
     const btnConfirmDelete = document.getElementById('btnConfirmDelete');
     if (btnConfirmDelete) btnConfirmDelete.addEventListener('click', window.executeDelete);
     
-    // Forms
     const addEntryForm = document.getElementById('addEntryForm');
-    if (addEntryForm) {
-        addEntryForm.addEventListener('submit', window.saveNewEntry);
-    }
+    if (addEntryForm) addEntryForm.addEventListener('submit', window.saveNewEntry);
     
     const editEntryForm = document.getElementById('editEntryForm');
-    if (editEntryForm) {
-        editEntryForm.addEventListener('submit', window.updateEntry);
-    }
+    if (editEntryForm) editEntryForm.addEventListener('submit', window.updateEntry);
     
-    // Search and filter
     const searchInput = document.getElementById('searchInput');
-    if (searchInput) {
-        searchInput.addEventListener('input', filterData);
-    }
+    if (searchInput) searchInput.addEventListener('input', filterData);
     
     const monthFilter = document.getElementById('monthFilter');
-    if (monthFilter) {
-        monthFilter.addEventListener('change', filterData);
-    }
+    if (monthFilter) monthFilter.addEventListener('change', filterData);
     
-    // Toast close
     const toastClose = document.getElementById('toastClose');
-    if (toastClose) {
-        toastClose.addEventListener('click', () => {
-            const toast = document.getElementById('toast');
-            if (toast) toast.hidden = true;
-        });
-    }
+    if (toastClose) toastClose.addEventListener('click', () => {
+        const toast = document.getElementById('toast');
+        if (toast) toast.style.display = 'none';
+    });
     
-    // Modal overlays
     const modalOverlay = document.getElementById('modalOverlay');
-    if (modalOverlay) {
-        modalOverlay.addEventListener('click', (e) => {
-            if (e.target === modalOverlay) window.closeAddModal();
-        });
-    }
+    if (modalOverlay) modalOverlay.addEventListener('click', (e) => {
+        if (e.target === modalOverlay) window.closeAddModal();
+    });
     
     const editModalOverlay = document.getElementById('editModalOverlay');
-    if (editModalOverlay) {
-        editModalOverlay.addEventListener('click', (e) => {
-            if (e.target === editModalOverlay) window.closeEditModal();
-        });
-    }
+    if (editModalOverlay) editModalOverlay.addEventListener('click', (e) => {
+        if (e.target === editModalOverlay) window.closeEditModal();
+    });
     
     const deleteModalOverlay = document.getElementById('deleteModalOverlay');
-    if (deleteModalOverlay) {
-        deleteModalOverlay.addEventListener('click', (e) => {
-            if (e.target === deleteModalOverlay) window.closeDeleteModal();
-        });
-    }
+    if (deleteModalOverlay) deleteModalOverlay.addEventListener('click', (e) => {
+        if (e.target === deleteModalOverlay) window.closeDeleteModal();
+    });
     
-    // Keyboard
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             const modal = document.getElementById('modalOverlay');
@@ -643,33 +558,30 @@ const setupEventListeners = () => {
             if (modal && modal.style.display === 'flex') window.closeAddModal();
             if (editModal && editModal.style.display === 'flex') window.closeEditModal();
             if (deleteModal && deleteModal.style.display === 'flex') window.closeDeleteModal();
-            if (toast && !toast.hidden) toast.hidden = true;
+            if (toast && toast.style.display === 'flex') toast.style.display = 'none';
         }
     });
 };
 
 // ===== INITIALIZE =====
 const init = () => {
-    // Ensure modals are hidden
     const modalOverlay = document.getElementById('modalOverlay');
     const editModalOverlay = document.getElementById('editModalOverlay');
     const deleteModalOverlay = document.getElementById('deleteModalOverlay');
+    const toast = document.getElementById('toast');
     
     if (modalOverlay) modalOverlay.style.display = 'none';
     if (editModalOverlay) editModalOverlay.style.display = 'none';
     if (deleteModalOverlay) deleteModalOverlay.style.display = 'none';
+    if (toast) toast.style.display = 'none';
     
-    // Setup event listeners
     setupEventListeners();
-    
-    // Load and render data
     loadData();
     renderSummary(currentData);
     populateMonthFilter(currentData);
     renderTable(currentData);
 };
 
-// Start app when DOM is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
