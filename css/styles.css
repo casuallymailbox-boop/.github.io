@@ -54,6 +54,7 @@ body {
     display: flex;
     flex-direction: column;
     transition: var(--transition);
+    overflow-x: hidden;
 }
 
 /* ===== TOAST ===== */
@@ -89,7 +90,7 @@ body {
 
 .toast-close:hover { color: var(--text-primary); }
 
-/* ===== HEADER - FIXED FULL WIDTH ===== */
+/* ===== HEADER ===== */
 .header {
     background: linear-gradient(135deg, var(--primary), var(--primary-dark));
     color: white;
@@ -103,8 +104,8 @@ body {
 
 .header-content {
     width: 100%;
-    max-width: 100%;
-    margin: 0;
+    max-width: 1200px;
+    margin: 0 auto;
     text-align: center;
 }
 
@@ -135,7 +136,6 @@ body {
     width: 100%;
 }
 
-/* Theme Toggle Button */
 .theme-toggle {
     background: rgba(255, 255, 255, 0.15);
     border: 1px solid rgba(255, 255, 255, 0.2);
@@ -149,7 +149,7 @@ body {
     transition: var(--transition);
     flex-shrink: 0;
     position: absolute;
-    right: 1rem;
+    right: 0;
 }
 
 .theme-toggle:hover {
@@ -172,10 +172,10 @@ body {
     flex: 1; 
 }
 
-/* ===== SUMMARY CARDS ===== */
+/* ===== SUMMARY CARDS - RESPONSIVE ===== */
 .summary-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
     gap: 0.75rem;
     margin-bottom: 1.5rem;
     width: 100%;
@@ -184,11 +184,12 @@ body {
 .summary-card {
     background: var(--bg-card);
     border-radius: var(--radius);
-    padding: 1rem;
+    padding: 1rem 0.75rem;
     box-shadow: var(--shadow);
     text-align: center;
     transition: var(--transition);
     border: 1px solid var(--border);
+    min-width: 0;
 }
 
 .summary-card:hover { 
@@ -197,23 +198,25 @@ body {
 }
 
 .summary-card .value { 
-    font-size: 1.2rem; 
+    font-size: 1.1rem; 
     font-weight: 700; 
     color: var(--primary); 
     margin: 0.25rem 0; 
+    word-break: break-word;
 }
 
 .summary-card .label { 
     color: var(--text-secondary); 
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    line-height: 1.3;
 }
 
 .summary-card.positive .value { color: var(--success); }
 .summary-card.negative .value { color: var(--danger); }
 
-/* ===== CONTROLS ===== */
+/* ===== CONTROLS - RESPONSIVE ===== */
 .controls {
     display: flex;
     gap: 0.75rem;
@@ -225,7 +228,7 @@ body {
 
 .search-box {
     flex: 1;
-    min-width: 200px;
+    min-width: 100%;
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -248,9 +251,13 @@ body {
     font-size: 0.95rem;
     outline: none;
     color: var(--text-primary);
+    min-width: 0;
 }
 
-.search-box svg { color: var(--text-secondary); }
+.search-box svg { 
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
 
 .filter-group {
     display: flex;
@@ -260,11 +267,13 @@ body {
     padding: 0.6rem 0.85rem;
     border-radius: var(--radius-sm);
     border: 1px solid var(--border);
+    width: 100%;
 }
 
 .filter-group label { 
     font-size: 0.85rem; 
     color: var(--text-secondary); 
+    white-space: nowrap;
 }
 
 .filter-group select {
@@ -275,26 +284,33 @@ body {
     outline: none;
     cursor: pointer;
     font-weight: 500;
+    flex: 1;
+    min-width: 0;
 }
 
 .action-group {
     display: flex;
     gap: 0.5rem;
-    margin-left: auto;
+    margin-left: 0;
+    width: 100%;
+    justify-content: center;
 }
 
 .btn-add, .btn-export {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.4rem;
     border: none;
-    padding: 0.6rem 0.85rem;
+    padding: 0.75rem 1rem;
     border-radius: var(--radius-sm);
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     font-weight: 600;
     cursor: pointer;
     transition: var(--transition);
     white-space: nowrap;
+    flex: 1;
+    max-width: 140px;
 }
 
 .btn-add { background: var(--success); color: white; }
@@ -303,7 +319,7 @@ body {
 .btn-export { background: var(--primary); color: white; }
 .btn-export:hover { background: var(--primary-dark); transform: translateY(-1px); }
 
-/* ===== TABLE ===== */
+/* ===== TABLE - RESPONSIVE ===== */
 .table-container {
     background: var(--bg-card);
     border-radius: var(--radius);
@@ -312,12 +328,13 @@ body {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     width: 100%;
+    margin-bottom: 1rem;
 }
 
 .payment-table {
     width: 100%;
     border-collapse: collapse;
-    min-width: 800px;
+    min-width: 750px;
 }
 
 .payment-table th {
@@ -338,7 +355,7 @@ body {
 .payment-table td {
     padding: 0.85rem 0.75rem;
     border-bottom: 1px solid var(--border);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     white-space: nowrap;
 }
 
@@ -350,11 +367,12 @@ body {
     border: 1px solid var(--border);
     padding: 0.35rem 0.65rem;
     border-radius: var(--radius-sm);
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     cursor: pointer;
     transition: var(--transition);
     margin-right: 0.25rem;
     color: var(--text-primary);
+    white-space: nowrap;
 }
 
 .btn-action:hover { 
@@ -373,7 +391,7 @@ body {
     gap: 0.35rem;
     padding: 0.25rem 0.65rem;
     border-radius: 999px;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-weight: 500;
     white-space: nowrap;
 }
@@ -558,7 +576,7 @@ body {
     width: 100%;
 }
 
-/* ===== MOBILE RESPONSIVE ===== */
+/* ===== MOBILE RESPONSIVE - FULLY OPTIMIZED ===== */
 @media (max-width: 768px) {
     .header { padding: 1rem 0.75rem; }
     
@@ -589,38 +607,110 @@ body {
     
     .container { padding: 0.75rem; }
     
+    /* Summary Cards - 2 columns on mobile */
     .summary-grid { 
         grid-template-columns: repeat(2, 1fr); 
         gap: 0.5rem; 
     }
     
-    .summary-card { padding: 0.75rem; }
-    .summary-card .value { font-size: 1.05rem; }
-    .summary-card .label { font-size: 0.7rem; }
+    .summary-card { padding: 0.75rem 0.5rem; }
+    .summary-card .value { font-size: 1rem; }
+    .summary-card .label { font-size: 0.65rem; }
     
-    .controls { flex-direction: column; align-items: stretch; }
-    .search-box { min-width: 100%; }
-    .filter-group { width: 100%; justify-content: space-between; }
-    .action-group { margin-left: 0; justify-content: center; }
+    /* Controls - Stack vertically */
+    .controls { 
+        flex-direction: column; 
+        align-items: stretch;
+        gap: 0.5rem;
+    }
+    
+    .search-box { 
+        width: 100%;
+        min-width: 100%;
+    }
+    
+    .filter-group { 
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .action-group { 
+        margin-left: 0; 
+        justify-content: center;
+        gap: 0.5rem;
+    }
+    
+    .btn-add, .btn-export { 
+        padding: 0.75rem;
+        max-width: none;
+    }
+    
     .btn-add span, .btn-export span { display: none; }
-    .btn-add, .btn-export { padding: 0.6rem; }
     
-    .payment-table th, .payment-table td { padding: 0.65rem 0.5rem; font-size: 0.85rem; }
+    /* Table */
+    .payment-table th, .payment-table td { 
+        padding: 0.65rem 0.5rem; 
+        font-size: 0.8rem; 
+    }
     
+    /* Modal */
     .modal { margin: 0.5rem; max-height: 95vh; }
     .form-row { grid-template-columns: 1fr; }
     
+    /* Toast */
     .toast { left: 1rem; right: 1rem; max-width: none; }
 }
 
 @media (max-width: 480px) {
-    .summary-grid { grid-template-columns: 1fr; }
-    .action-group { flex-direction: row; }
-    .btn-action { padding: 0.3rem 0.5rem; font-size: 0.75rem; }
+    /* Summary Cards - 2 columns on small screens */
+    .summary-grid { 
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.4rem;
+    }
+    
+    .summary-card { padding: 0.6rem 0.4rem; }
+    .summary-card .value { font-size: 0.95rem; }
+    .summary-card .label { font-size: 0.6rem; }
+    
+    /* Action buttons side by side */
+    .action-group { 
+        flex-direction: row;
+        gap: 0.5rem;
+    }
+    
+    .btn-add, .btn-export { 
+        padding: 0.65rem;
+        flex: 1;
+    }
+    
+    /* Table */
+    .btn-action { 
+        padding: 0.3rem 0.5rem; 
+        font-size: 0.7rem; 
+    }
+    
     .payment-table { min-width: 700px; }
     
+    /* Header */
     .logo { font-size: 1rem; }
     .subtitle { font-size: 0.7rem; }
+}
+
+@media (max-width: 360px) {
+    .summary-grid { 
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.3rem;
+    }
+    
+    .summary-card { padding: 0.5rem 0.3rem; }
+    .summary-card .value { font-size: 0.85rem; }
+    .summary-card .label { font-size: 0.55rem; }
+    
+    .header { padding: 0.85rem 0.5rem; }
+    .logo { font-size: 0.95rem; }
+    .subtitle { font-size: 0.65rem; }
+    
+    .container { padding: 0.5rem; }
 }
 
 /* ===== ACCESSIBILITY ===== */
