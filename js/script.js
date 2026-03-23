@@ -222,8 +222,6 @@ const renderTable = (data) => {
     emptyState.hidden = true;
     
     tableBody.innerHTML = data.map((row) => {
-        // Find the actual index in currentData for edit/delete
-        const actualIndex = currentData.findIndex(item => item.id === row.id);
         return `
         <tr>
             <td><strong>${formatDate(row.date)}</strong></td>
@@ -234,8 +232,8 @@ const renderTable = (data) => {
             <td><small>${formatDate(row.roommatePaidOn)}</small></td>
             <td>${getStatusBadge(row.status, row.roommatePaidOn, row.iPaid)}</td>
             <td>
-                <button class="btn-action" data-id="${row.id}" onclick="openEditModal('${row.id}')">Edit</button>
-                <button class="btn-action delete" data-id="${row.id}" onclick="confirmDelete('${row.id}')">Delete</button>
+                <button class="btn-action" onclick="openEditModal('${row.id}')">Edit</button>
+                <button class="btn-action delete" onclick="confirmDelete('${row.id}')">Delete</button>
             </td>
         </tr>
     `}).join('');
@@ -320,20 +318,20 @@ const exportSummary = () => {
     showToast('Summary exported successfully!', 'success');
 };
 
-// ===== ADD/EDIT/DELETE ENTRIES =====
+// ===== MODAL FUNCTIONS - FIXED =====
 const openAddModal = () => {
-    modalOverlay.hidden = false;
+    // Reset form
+    addEntryForm.reset();
     document.getElementById('entryDate').valueAsDate = new Date();
     document.getElementById('entryTotalRent').value = 750;
-    document.getElementById('entryIPaid').value = '';
-    document.getElementById('entryRoommatePaid').value = '';
-    document.getElementById('entryRoommateDate').value = '';
-    document.getElementById('entryNotes').value = '';
+    
+    // Show modal using style.display
+    modalOverlay.style.display = 'flex';
     document.getElementById('entryDate').focus();
 };
 
 const closeAddModal = () => {
-    modalOverlay.hidden = true;
+    modalOverlay.style.display = 'none';
     addEntryForm.reset();
 };
 
@@ -352,12 +350,13 @@ const openEditModal = (id) => {
     document.getElementById('editRoommateDate').value = formatDateForInput(entry.roommatePaidOn);
     document.getElementById('editNotes').value = entry.notes || '';
     
-    editModalOverlay.hidden = false;
+    // Show modal using style.display
+    editModalOverlay.style.display = 'flex';
     document.getElementById('editDate').focus();
 };
 
 const closeEditModal = () => {
-    editModalOverlay.hidden = true;
+    editModalOverlay.style.display = 'none';
     editEntryForm.reset();
 };
 
@@ -478,11 +477,11 @@ let deleteTargetId = null;
 
 const confirmDelete = (id) => {
     deleteTargetId = id;
-    deleteModalOverlay.hidden = false;
+    deleteModalOverlay.style.display = 'flex';
 };
 
 const closeDeleteModal = () => {
-    deleteModalOverlay.hidden = true;
+    deleteModalOverlay.style.display = 'none';
     deleteTargetId = null;
 };
 
@@ -512,7 +511,9 @@ window.confirmDelete = confirmDelete;
 // ===== EVENT HANDLERS =====
 btnExport.addEventListener('click', exportSummary);
 btnAddEntry.addEventListener('click', openAddModal);
-btnAddFromEmpty?.addEventListener('click', openAddModal);
+if (btnAddFromEmpty) {
+    btnAddFromEmpty.addEventListener('click', openAddModal);
+}
 
 btnCloseModal.addEventListener('click', closeAddModal);
 btnCancelEntry.addEventListener('click', closeAddModal);
@@ -533,28 +534,36 @@ monthFilter.addEventListener('change', filterData);
 toastClose.addEventListener('click', closeToast);
 
 // Close modals on overlay click
-[modalOverlay, editModalOverlay, deleteModalOverlay].forEach(overlay => {
-    overlay?.addEventListener('click', (e) => {
-        if (e.target === overlay) {
-            if (overlay === modalOverlay) closeAddModal();
-            if (overlay === editModalOverlay) closeEditModal();
-            if (overlay === deleteModalOverlay) closeDeleteModal();
-        }
-    });
+modalOverlay.addEventListener('click', (e) => {
+    if (e.target === modalOverlay) closeAddModal();
+});
+
+editModalOverlay.addEventListener('click', (e) => {
+    if (e.target === editModalOverlay) closeEditModal();
+});
+
+deleteModalOverlay.addEventListener('click', (e) => {
+    if (e.target === deleteModalOverlay) closeDeleteModal();
 });
 
 // Keyboard accessibility: Close modals with Escape key
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-        if (!modalOverlay.hidden) closeAddModal();
-        if (!editModalOverlay.hidden) closeEditModal();
-        if (!deleteModalOverlay.hidden) closeDeleteModal();
+        if (modalOverlay.style.display === 'flex') closeAddModal();
+        if (editModalOverlay.style.display === 'flex') closeEditModal();
+        if (deleteModalOverlay.style.display === 'flex') closeDeleteModal();
         if (!toast.hidden) closeToast();
     }
 });
 
 // ===== INITIALIZE =====
 const init = () => {
+    // Ensure all modals are hidden on load
+    modalOverlay.style.display = 'none';
+    editModalOverlay.style.display = 'none';
+    deleteModalOverlay.style.display = 'none';
+    
+    // Load and render data
     loadData();
     renderSummary(currentData);
     populateMonthFilter(currentData);
