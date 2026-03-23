@@ -71,7 +71,6 @@ const loadData = () => {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
             currentData = JSON.parse(stored);
-            showToast('Data loaded from browser storage', 'success');
         } else {
             currentData = [...defaultData];
             saveData();
@@ -79,7 +78,6 @@ const loadData = () => {
     } catch (e) {
         console.error('Error loading data:', e);
         currentData = [...defaultData];
-        showToast('Using default data', 'warning');
     }
 };
 
@@ -89,17 +87,8 @@ const saveData = () => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData));
     } catch (e) {
         console.error('Error saving data:', e);
-        showToast('Failed to save data', 'error');
     }
 };
-
-// ===== DOM ELEMENTS =====
-let tableBody, searchInput, monthFilter, summaryGrid, emptyState;
-let btnExport, btnAddEntry, btnAddFromEmpty;
-let modalOverlay, btnCloseModal, btnCancelEntry, addEntryForm;
-let editModalOverlay, btnCloseEditModal, btnCancelEdit, editEntryForm;
-let deleteModalOverlay, btnCloseDeleteModal, btnCancelDelete, btnConfirmDelete;
-let toast, toastMessage, toastClose;
 
 // ===== UTILITY FUNCTIONS =====
 const formatCurrency = (amount) => {
@@ -146,7 +135,10 @@ const getStatusBadge = (status, roommatePaidOn, iPaid) => {
 
 // ===== TOAST NOTIFICATIONS =====
 const showToast = (message, type = 'success') => {
-    if (!toast) return;
+    const toast = document.getElementById('toast');
+    const toastMessage = document.getElementById('toastMessage');
+    if (!toast || !toastMessage) return;
+    
     toastMessage.textContent = message;
     toast.className = 'toast';
     if (type) toast.classList.add(type);
@@ -154,15 +146,12 @@ const showToast = (message, type = 'success') => {
     
     setTimeout(() => {
         toast.hidden = true;
-    }, 4000);
-};
-
-const closeToast = () => {
-    if (toast) toast.hidden = true;
+    }, 3000);
 };
 
 // ===== RENDER FUNCTIONS =====
 const renderSummary = (data) => {
+    const summaryGrid = document.getElementById('summaryGrid');
     if (!summaryGrid) return;
     
     const totalWeeks = data.filter(row => row.date && row.date !== '-').length;
@@ -197,6 +186,8 @@ const renderSummary = (data) => {
 };
 
 const renderTable = (data) => {
+    const tableBody = document.getElementById('tableBody');
+    const emptyState = document.getElementById('emptyState');
     if (!tableBody) return;
     
     if (data.length === 0) {
@@ -218,8 +209,8 @@ const renderTable = (data) => {
             <td><small>${formatDate(row.roommatePaidOn)}</small></td>
             <td>${getStatusBadge(row.status, row.roommatePaidOn, row.iPaid)}</td>
             <td>
-                <button class="btn-action" onclick="window.openEditModal('${row.id}')">Edit</button>
-                <button class="btn-action delete" onclick="window.confirmDelete('${row.id}')">Delete</button>
+                <button class="btn-action" data-id="${row.id}" onclick="openEditModal('${row.id}')">Edit</button>
+                <button class="btn-action delete" data-id="${row.id}" onclick="confirmDelete('${row.id}')">Delete</button>
             </td>
         </tr>
     `}).join('');
@@ -227,6 +218,7 @@ const renderTable = (data) => {
 
 // ===== MONTH FILTER =====
 const populateMonthFilter = (data) => {
+    const monthFilter = document.getElementById('monthFilter');
     if (!monthFilter) return;
     
     monthFilter.innerHTML = '<option value="all">All Months</option>';
@@ -262,6 +254,8 @@ const populateMonthFilter = (data) => {
 };
 
 const filterData = () => {
+    const searchInput = document.getElementById('searchInput');
+    const monthFilter = document.getElementById('monthFilter');
     if (!searchInput || !monthFilter) return;
     
     const searchTerm = searchInput.value.toLowerCase();
@@ -308,38 +302,38 @@ const exportSummary = () => {
     showToast('Summary exported successfully!', 'success');
 };
 
-// ===== MODAL FUNCTIONS - FIXED =====
-const openAddModal = () => {
-    console.log('Opening add modal');
-    if (!modalOverlay || !addEntryForm) {
-        console.error('Modal elements not found');
+// ===== MODAL FUNCTIONS =====
+window.openAddModal = function() {
+    const modalOverlay = document.getElementById('modalOverlay');
+    const addEntryForm = document.getElementById('addEntryForm');
+    const entryDate = document.getElementById('entryDate');
+    const entryTotalRent = document.getElementById('entryTotalRent');
+    
+    if (!modalOverlay) {
+        console.error('Modal overlay not found');
         return;
     }
     
-    // Reset form
-    addEntryForm.reset();
-    const dateInput = document.getElementById('entryDate');
-    const totalRentInput = document.getElementById('entryTotalRent');
+    if (addEntryForm) addEntryForm.reset();
+    if (entryDate) entryDate.valueAsDate = new Date();
+    if (entryTotalRent) entryTotalRent.value = 750;
     
-    if (dateInput) dateInput.valueAsDate = new Date();
-    if (totalRentInput) totalRentInput.value = 750;
-    
-    // Show modal
     modalOverlay.style.display = 'flex';
-    if (dateInput) dateInput.focus();
+    if (entryDate) entryDate.focus();
 };
 
-const closeAddModal = () => {
-    if (modalOverlay) {
-        modalOverlay.style.display = 'none';
-    }
+window.closeAddModal = function() {
+    const modalOverlay = document.getElementById('modalOverlay');
+    const addEntryForm = document.getElementById('addEntryForm');
+    if (modalOverlay) modalOverlay.style.display = 'none';
     if (addEntryForm) addEntryForm.reset();
 };
 
-const openEditModal = (id) => {
-    console.log('Opening edit modal for ID:', id);
-    if (!editModalOverlay || !editEntryForm) {
-        console.error('Edit modal elements not found');
+window.openEditModal = function(id) {
+    console.log('Edit clicked for ID:', id);
+    const editModalOverlay = document.getElementById('editModalOverlay');
+    if (!editModalOverlay) {
+        console.error('Edit modal not found');
         return;
     }
     
@@ -349,57 +343,55 @@ const openEditModal = (id) => {
         return;
     }
     
-    const editEntryIdInput = document.getElementById('editEntryId');
-    const editDateInput = document.getElementById('editDate');
-    const editTotalRentInput = document.getElementById('editTotalRent');
-    const editIPaidInput = document.getElementById('editIPaid');
-    const editRoommatePaidInput = document.getElementById('editRoommatePaid');
-    const editRoommateDateInput = document.getElementById('editRoommateDate');
-    const editNotesInput = document.getElementById('editNotes');
+    const editEntryId = document.getElementById('editEntryId');
+    const editDate = document.getElementById('editDate');
+    const editTotalRent = document.getElementById('editTotalRent');
+    const editIPaid = document.getElementById('editIPaid');
+    const editRoommatePaid = document.getElementById('editRoommatePaid');
+    const editRoommateDate = document.getElementById('editRoommateDate');
+    const editNotes = document.getElementById('editNotes');
     
-    if (editEntryIdInput) editEntryIdInput.value = id;
-    if (editDateInput) editDateInput.value = formatDateForInput(entry.date);
-    if (editTotalRentInput) editTotalRentInput.value = entry.totalRent || '';
-    if (editIPaidInput) editIPaidInput.value = entry.iPaid || '';
-    if (editRoommatePaidInput) editRoommatePaidInput.value = entry.roommatePaid || '';
-    if (editRoommateDateInput) editRoommateDateInput.value = formatDateForInput(entry.roommatePaidOn);
-    if (editNotesInput) editNotesInput.value = entry.notes || '';
+    if (editEntryId) editEntryId.value = id;
+    if (editDate) editDate.value = formatDateForInput(entry.date);
+    if (editTotalRent) editTotalRent.value = entry.totalRent || '';
+    if (editIPaid) editIPaid.value = entry.iPaid || '';
+    if (editRoommatePaid) editRoommatePaid.value = entry.roommatePaid || '';
+    if (editRoommateDate) editRoommateDate.value = formatDateForInput(entry.roommatePaidOn);
+    if (editNotes) editNotes.value = entry.notes || '';
     
-    // Show modal
     editModalOverlay.style.display = 'flex';
-    if (editDateInput) editDateInput.focus();
+    if (editDate) editDate.focus();
 };
 
-const closeEditModal = () => {
-    if (editModalOverlay) {
-        editModalOverlay.style.display = 'none';
-    }
+window.closeEditModal = function() {
+    const editModalOverlay = document.getElementById('editModalOverlay');
+    const editEntryForm = document.getElementById('editEntryForm');
+    if (editModalOverlay) editModalOverlay.style.display = 'none';
     if (editEntryForm) editEntryForm.reset();
 };
 
-const saveNewEntry = (e) => {
-    e.preventDefault();
-    console.log('Saving new entry');
+window.saveNewEntry = function(e) {
+    if (e) e.preventDefault();
     
-    const dateInput = document.getElementById('entryDate');
-    const totalRentInput = document.getElementById('entryTotalRent');
-    const iPaidInput = document.getElementById('entryIPaid');
-    const roommatePaidInput = document.getElementById('entryRoommatePaid');
-    const roommateDateInput = document.getElementById('entryRoommateDate');
-    const notesInput = document.getElementById('entryNotes');
+    const entryDate = document.getElementById('entryDate');
+    const entryTotalRent = document.getElementById('entryTotalRent');
+    const entryIPaid = document.getElementById('entryIPaid');
+    const entryRoommatePaid = document.getElementById('entryRoommatePaid');
+    const entryRoommateDate = document.getElementById('entryRoommateDate');
+    const entryNotes = document.getElementById('entryNotes');
     
-    if (!dateInput || !dateInput.value) {
+    if (!entryDate || !entryDate.value) {
         showToast('Please select a date', 'error');
         return;
     }
     
-    const totalRent = totalRentInput && totalRentInput.value ? parseFloat(totalRentInput.value) : 750;
-    const iPaid = iPaidInput && iPaidInput.value ? parseFloat(iPaidInput.value) : null;
-    const roommatePaid = roommatePaidInput && roommatePaidInput.value ? parseFloat(roommatePaidInput.value) : null;
-    const roommatePaidOn = roommateDateInput && roommateDateInput.value ? roommateDateInput.value : null;
-    const notes = notesInput ? notesInput.value : '';
+    const totalRent = entryTotalRent && entryTotalRent.value ? parseFloat(entryTotalRent.value) : 750;
+    const iPaid = entryIPaid && entryIPaid.value ? parseFloat(entryIPaid.value) : null;
+    const roommatePaid = entryRoommatePaid && entryRoommatePaid.value ? parseFloat(entryRoommatePaid.value) : null;
+    const roommatePaidOn = entryRoommateDate && entryRoommateDate.value ? entryRoommateDate.value : null;
+    const notes = entryNotes ? entryNotes.value : '';
     
-    const dateObj = new Date(dateInput.value);
+    const dateObj = new Date(entryDate.value);
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const date = `${dateObj.getDate()}-${months[dateObj.getMonth()]}-${dateObj.getFullYear()}`;
     
@@ -434,28 +426,27 @@ const saveNewEntry = (e) => {
     renderSummary(currentData);
     populateMonthFilter(currentData);
     renderTable(currentData);
-    closeAddModal();
+    window.closeAddModal();
     showToast('Entry added successfully!', 'success');
 };
 
-const updateEntry = (e) => {
-    e.preventDefault();
-    console.log('Updating entry');
+window.updateEntry = function(e) {
+    if (e) e.preventDefault();
     
-    const editEntryIdInput = document.getElementById('editEntryId');
-    const editDateInput = document.getElementById('editDate');
-    const editTotalRentInput = document.getElementById('editTotalRent');
-    const editIPaidInput = document.getElementById('editIPaid');
-    const editRoommatePaidInput = document.getElementById('editRoommatePaid');
-    const editRoommateDateInput = document.getElementById('editRoommateDate');
-    const editNotesInput = document.getElementById('editNotes');
+    const editEntryId = document.getElementById('editEntryId');
+    const editDate = document.getElementById('editDate');
+    const editTotalRent = document.getElementById('editTotalRent');
+    const editIPaid = document.getElementById('editIPaid');
+    const editRoommatePaid = document.getElementById('editRoommatePaid');
+    const editRoommateDate = document.getElementById('editRoommateDate');
+    const editNotes = document.getElementById('editNotes');
     
-    if (!editEntryIdInput || !editEntryIdInput.value) {
+    if (!editEntryId || !editEntryId.value) {
         showToast('Entry ID not found', 'error');
         return;
     }
     
-    const id = editEntryIdInput.value;
+    const id = editEntryId.value;
     const index = currentData.findIndex(item => item.id === id);
     
     if (index === -1) {
@@ -463,18 +454,18 @@ const updateEntry = (e) => {
         return;
     }
     
-    if (!editDateInput || !editDateInput.value) {
+    if (!editDate || !editDate.value) {
         showToast('Please select a date', 'error');
         return;
     }
     
-    const totalRent = editTotalRentInput && editTotalRentInput.value ? parseFloat(editTotalRentInput.value) : 0;
-    const iPaid = editIPaidInput && editIPaidInput.value ? parseFloat(editIPaidInput.value) : null;
-    const roommatePaid = editRoommatePaidInput && editRoommatePaidInput.value ? parseFloat(editRoommatePaidInput.value) : null;
-    const roommatePaidOn = editRoommateDateInput && editRoommateDateInput.value ? editRoommateDateInput.value : null;
-    const notes = editNotesInput ? editNotesInput.value : '';
+    const totalRent = editTotalRent && editTotalRent.value ? parseFloat(editTotalRent.value) : 0;
+    const iPaid = editIPaid && editIPaid.value ? parseFloat(editIPaid.value) : null;
+    const roommatePaid = editRoommatePaid && editRoommatePaid.value ? parseFloat(editRoommatePaid.value) : null;
+    const roommatePaidOn = editRoommateDate && editRoommateDate.value ? editRoommateDate.value : null;
+    const notes = editNotes ? editNotes.value : '';
     
-    const dateObj = new Date(editDateInput.value);
+    const dateObj = new Date(editDate.value);
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const date = `${dateObj.getDate()}-${months[dateObj.getMonth()]}-${dateObj.getFullYear()}`;
     
@@ -506,34 +497,34 @@ const updateEntry = (e) => {
     renderSummary(currentData);
     populateMonthFilter(currentData);
     renderTable(currentData);
-    closeEditModal();
+    window.closeEditModal();
     showToast('Entry updated successfully!', 'success');
 };
 
 let deleteTargetId = null;
 
-const confirmDelete = (id) => {
-    console.log('Confirming delete for ID:', id);
+window.confirmDelete = function(id) {
+    console.log('Delete clicked for ID:', id);
     deleteTargetId = id;
+    const deleteModalOverlay = document.getElementById('deleteModalOverlay');
     if (deleteModalOverlay) {
         deleteModalOverlay.style.display = 'flex';
     }
 };
 
-const closeDeleteModal = () => {
-    if (deleteModalOverlay) {
-        deleteModalOverlay.style.display = 'none';
-    }
+window.closeDeleteModal = function() {
+    const deleteModalOverlay = document.getElementById('deleteModalOverlay');
+    if (deleteModalOverlay) deleteModalOverlay.style.display = 'none';
     deleteTargetId = null;
 };
 
-const executeDelete = () => {
+window.executeDelete = function() {
     if (!deleteTargetId) return;
     
     const index = currentData.findIndex(item => item.id === deleteTargetId);
     if (index === -1) {
         showToast('Entry not found', 'error');
-        closeDeleteModal();
+        window.closeDeleteModal();
         return;
     }
     
@@ -542,149 +533,128 @@ const executeDelete = () => {
     renderSummary(currentData);
     populateMonthFilter(currentData);
     renderTable(currentData);
-    closeDeleteModal();
+    window.closeDeleteModal();
     showToast('Entry deleted', 'success');
-};
-
-// Make functions globally accessible
-window.openEditModal = openEditModal;
-window.confirmDelete = confirmDelete;
-
-// ===== INITIALIZE DOM ELEMENTS =====
-const initDOMElements = () => {
-    tableBody = document.getElementById('tableBody');
-    searchInput = document.getElementById('searchInput');
-    monthFilter = document.getElementById('monthFilter');
-    summaryGrid = document.getElementById('summaryGrid');
-    emptyState = document.getElementById('emptyState');
-    btnExport = document.getElementById('btnExport');
-    btnAddEntry = document.getElementById('btnAddEntry');
-    btnAddFromEmpty = document.getElementById('btnAddFromEmpty');
-    modalOverlay = document.getElementById('modalOverlay');
-    btnCloseModal = document.getElementById('btnCloseModal');
-    btnCancelEntry = document.getElementById('btnCancelEntry');
-    addEntryForm = document.getElementById('addEntryForm');
-    editModalOverlay = document.getElementById('editModalOverlay');
-    btnCloseEditModal = document.getElementById('btnCloseEditModal');
-    btnCancelEdit = document.getElementById('btnCancelEdit');
-    editEntryForm = document.getElementById('editEntryForm');
-    deleteModalOverlay = document.getElementById('deleteModalOverlay');
-    btnCloseDeleteModal = document.getElementById('btnCloseDeleteModal');
-    btnCancelDelete = document.getElementById('btnCancelDelete');
-    btnConfirmDelete = document.getElementById('btnConfirmDelete');
-    toast = document.getElementById('toast');
-    toastMessage = document.getElementById('toastMessage');
-    toastClose = document.getElementById('toastClose');
 };
 
 // ===== SETUP EVENT LISTENERS =====
 const setupEventListeners = () => {
-    console.log('Setting up event listeners...');
-    
     // Add Entry button
+    const btnAddEntry = document.getElementById('btnAddEntry');
     if (btnAddEntry) {
-        btnAddEntry.addEventListener('click', (e) => {
-            console.log('Add Entry button clicked');
-            e.preventDefault();
-            openAddModal();
-        });
-    } else {
-        console.error('btnAddEntry not found');
+        btnAddEntry.addEventListener('click', window.openAddModal);
     }
     
-    // Add from empty state button
+    // Add from empty state
+    const btnAddFromEmpty = document.getElementById('btnAddFromEmpty');
     if (btnAddFromEmpty) {
-        btnAddFromEmpty.addEventListener('click', (e) => {
-            e.preventDefault();
-            openAddModal();
-        });
+        btnAddFromEmpty.addEventListener('click', window.openAddModal);
     }
     
     // Export button
+    const btnExport = document.getElementById('btnExport');
     if (btnExport) {
         btnExport.addEventListener('click', exportSummary);
     }
     
-    // Close modal buttons
-    if (btnCloseModal) btnCloseModal.addEventListener('click', closeAddModal);
-    if (btnCancelEntry) btnCancelEntry.addEventListener('click', closeAddModal);
-    if (btnCloseEditModal) btnCloseEditModal.addEventListener('click', closeEditModal);
-    if (btnCancelEdit) btnCancelEdit.addEventListener('click', closeEditModal);
-    if (btnCloseDeleteModal) btnCloseDeleteModal.addEventListener('click', closeDeleteModal);
-    if (btnCancelDelete) btnCancelDelete.addEventListener('click', closeDeleteModal);
+    // Close buttons
+    const btnCloseModal = document.getElementById('btnCloseModal');
+    if (btnCloseModal) btnCloseModal.addEventListener('click', window.closeAddModal);
     
-    // Confirm delete
-    if (btnConfirmDelete) {
-        btnConfirmDelete.addEventListener('click', executeDelete);
-    }
+    const btnCancelEntry = document.getElementById('btnCancelEntry');
+    if (btnCancelEntry) btnCancelEntry.addEventListener('click', window.closeAddModal);
     
-    // Form submissions
+    const btnCloseEditModal = document.getElementById('btnCloseEditModal');
+    if (btnCloseEditModal) btnCloseEditModal.addEventListener('click', window.closeEditModal);
+    
+    const btnCancelEdit = document.getElementById('btnCancelEdit');
+    if (btnCancelEdit) btnCancelEdit.addEventListener('click', window.closeEditModal);
+    
+    const btnCloseDeleteModal = document.getElementById('btnCloseDeleteModal');
+    if (btnCloseDeleteModal) btnCloseDeleteModal.addEventListener('click', window.closeDeleteModal);
+    
+    const btnCancelDelete = document.getElementById('btnCancelDelete');
+    if (btnCancelDelete) btnCancelDelete.addEventListener('click', window.closeDeleteModal);
+    
+    const btnConfirmDelete = document.getElementById('btnConfirmDelete');
+    if (btnConfirmDelete) btnConfirmDelete.addEventListener('click', window.executeDelete);
+    
+    // Forms
+    const addEntryForm = document.getElementById('addEntryForm');
     if (addEntryForm) {
-        addEntryForm.addEventListener('submit', saveNewEntry);
+        addEntryForm.addEventListener('submit', window.saveNewEntry);
     }
+    
+    const editEntryForm = document.getElementById('editEntryForm');
     if (editEntryForm) {
-        editEntryForm.addEventListener('submit', updateEntry);
+        editEntryForm.addEventListener('submit', window.updateEntry);
     }
     
     // Search and filter
+    const searchInput = document.getElementById('searchInput');
     if (searchInput) {
         searchInput.addEventListener('input', filterData);
     }
+    
+    const monthFilter = document.getElementById('monthFilter');
     if (monthFilter) {
         monthFilter.addEventListener('change', filterData);
     }
     
     // Toast close
+    const toastClose = document.getElementById('toastClose');
     if (toastClose) {
-        toastClose.addEventListener('click', closeToast);
+        toastClose.addEventListener('click', () => {
+            const toast = document.getElementById('toast');
+            if (toast) toast.hidden = true;
+        });
     }
     
-    // Close modals on overlay click
+    // Modal overlays
+    const modalOverlay = document.getElementById('modalOverlay');
     if (modalOverlay) {
         modalOverlay.addEventListener('click', (e) => {
-            if (e.target === modalOverlay) closeAddModal();
+            if (e.target === modalOverlay) window.closeAddModal();
         });
     }
+    
+    const editModalOverlay = document.getElementById('editModalOverlay');
     if (editModalOverlay) {
         editModalOverlay.addEventListener('click', (e) => {
-            if (e.target === editModalOverlay) closeEditModal();
+            if (e.target === editModalOverlay) window.closeEditModal();
         });
     }
+    
+    const deleteModalOverlay = document.getElementById('deleteModalOverlay');
     if (deleteModalOverlay) {
         deleteModalOverlay.addEventListener('click', (e) => {
-            if (e.target === deleteModalOverlay) closeDeleteModal();
+            if (e.target === deleteModalOverlay) window.closeDeleteModal();
         });
     }
     
-    // Keyboard accessibility
+    // Keyboard
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            if (modalOverlay && modalOverlay.style.display === 'flex') closeAddModal();
-            if (editModalOverlay && editModalOverlay.style.display === 'flex') closeEditModal();
-            if (deleteModalOverlay && deleteModalOverlay.style.display === 'flex') closeDeleteModal();
-            if (toast && !toast.hidden) closeToast();
+            const modal = document.getElementById('modalOverlay');
+            const editModal = document.getElementById('editModalOverlay');
+            const deleteModal = document.getElementById('deleteModalOverlay');
+            const toast = document.getElementById('toast');
+            
+            if (modal && modal.style.display === 'flex') window.closeAddModal();
+            if (editModal && editModal.style.display === 'flex') window.closeEditModal();
+            if (deleteModal && deleteModal.style.display === 'flex') window.closeDeleteModal();
+            if (toast && !toast.hidden) toast.hidden = true;
         }
     });
-    
-    console.log('Event listeners setup complete');
 };
 
 // ===== INITIALIZE =====
 const init = () => {
-    console.log('Initializing app...');
+    // Ensure modals are hidden
+    const modalOverlay = document.getElementById('modalOverlay');
+    const editModalOverlay = document.getElementById('editModalOverlay');
+    const deleteModalOverlay = document.getElementById('deleteModalOverlay');
     
-    // Initialize DOM elements
-    initDOMElements();
-    
-    // Check if elements are found
-    if (!btnAddEntry) {
-        console.error('ERROR: btnAddEntry not found in DOM!');
-    }
-    if (!modalOverlay) {
-        console.error('ERROR: modalOverlay not found in DOM!');
-    }
-    
-    // Ensure all modals are hidden on load
     if (modalOverlay) modalOverlay.style.display = 'none';
     if (editModalOverlay) editModalOverlay.style.display = 'none';
     if (deleteModalOverlay) deleteModalOverlay.style.display = 'none';
@@ -697,11 +667,9 @@ const init = () => {
     renderSummary(currentData);
     populateMonthFilter(currentData);
     renderTable(currentData);
-    
-    console.log('App initialized successfully');
 };
 
-// ===== START APP =====
+// Start app when DOM is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
