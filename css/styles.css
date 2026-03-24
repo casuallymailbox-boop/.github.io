@@ -172,7 +172,7 @@ body {
     flex: 1; 
 }
 
-/* ===== SUMMARY CARDS - RESPONSIVE ===== */
+/* ===== SUMMARY CARDS ===== */
 .summary-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
@@ -216,7 +216,7 @@ body {
 .summary-card.positive .value { color: var(--success); }
 .summary-card.negative .value { color: var(--danger); }
 
-/* ===== CONTROLS - RESPONSIVE ===== */
+/* ===== CONTROLS ===== */
 .controls {
     display: flex;
     gap: 0.75rem;
@@ -319,7 +319,7 @@ body {
 .btn-export { background: var(--primary); color: white; }
 .btn-export:hover { background: var(--primary-dark); transform: translateY(-1px); }
 
-/* ===== TABLE - RESPONSIVE ===== */
+/* ===== TABLE ===== */
 .table-container {
     background: var(--bg-card);
     border-radius: var(--radius);
@@ -576,7 +576,7 @@ body {
     width: 100%;
 }
 
-/* ===== MOBILE RESPONSIVE - FULLY OPTIMIZED ===== */
+/* ===== MOBILE RESPONSIVE ===== */
 @media (max-width: 768px) {
     .header { padding: 1rem 0.75rem; }
     
@@ -607,7 +607,6 @@ body {
     
     .container { padding: 0.75rem; }
     
-    /* Summary Cards - 2 columns on mobile */
     .summary-grid { 
         grid-template-columns: repeat(2, 1fr); 
         gap: 0.5rem; 
@@ -617,7 +616,6 @@ body {
     .summary-card .value { font-size: 1rem; }
     .summary-card .label { font-size: 0.65rem; }
     
-    /* Controls - Stack vertically */
     .controls { 
         flex-direction: column; 
         align-items: stretch;
@@ -647,22 +645,18 @@ body {
     
     .btn-add span, .btn-export span { display: none; }
     
-    /* Table */
     .payment-table th, .payment-table td { 
         padding: 0.65rem 0.5rem; 
         font-size: 0.8rem; 
     }
     
-    /* Modal */
     .modal { margin: 0.5rem; max-height: 95vh; }
     .form-row { grid-template-columns: 1fr; }
     
-    /* Toast */
     .toast { left: 1rem; right: 1rem; max-width: none; }
 }
 
 @media (max-width: 480px) {
-    /* Summary Cards - 2 columns on small screens */
     .summary-grid { 
         grid-template-columns: repeat(2, 1fr);
         gap: 0.4rem;
@@ -672,7 +666,6 @@ body {
     .summary-card .value { font-size: 0.95rem; }
     .summary-card .label { font-size: 0.6rem; }
     
-    /* Action buttons side by side */
     .action-group { 
         flex-direction: row;
         gap: 0.5rem;
@@ -683,7 +676,6 @@ body {
         flex: 1;
     }
     
-    /* Table */
     .btn-action { 
         padding: 0.3rem 0.5rem; 
         font-size: 0.7rem; 
@@ -691,7 +683,6 @@ body {
     
     .payment-table { min-width: 700px; }
     
-    /* Header */
     .logo { font-size: 1rem; }
     .subtitle { font-size: 0.7rem; }
 }
