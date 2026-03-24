@@ -3,15 +3,14 @@
  * With Firebase Firestore for real-time multi-user sync
  */
 
-// ===== FIREBASE CONFIGURATION =====
-// TODO: Replace with your Firebase project config from Firebase Console
+// ===== FIREBASE CONFIGURATION (Your Actual Config) =====
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyAmFh9jdUDC-lgcrHkl06EY2nB50ZT5i_Y",
+  authDomain: "hurstville-rent-tracker.firebaseapp.com",
+  projectId: "hurstville-rent-tracker",
+  storageBucket: "hurstville-rent-tracker.firebasestorage.app",
+  messagingSenderId: "150128012794",
+  appId: "1:150128012794:web:46a8b44d5e332346ccc843"
 };
 
 // ===== PRE-LOADED DATA (From Rent for Hurstville.xlsx) =====
@@ -144,7 +143,7 @@ const syncData = () => {
             console.log('Data synced from Firebase:', currentData.length, 'entries');
         },
         (error) => {
-            console.error('Error syncing ', error);
+            console.error('Error syncing data:', error);
             showToast('Sync error - using local data', 'error');
             if (loadingState) loadingState.style.display = 'none';
             loadDataFromLocalStorage();
@@ -214,7 +213,7 @@ const loadDataFromLocalStorage = () => {
         console.log('Using default data:', currentData.length, 'entries');
         return false;
     } catch (e) {
-        console.error('Error loading ', e);
+        console.error('Error loading data:', e);
         currentData = [...defaultData];
         saveToLocalStorage();
         return false;
@@ -227,7 +226,7 @@ const saveToLocalStorage = () => {
         console.log('Data saved to localStorage:', currentData.length, 'entries');
         return true;
     } catch (e) {
-        console.error('Error saving ', e);
+        console.error('Error saving data:', e);
         showToast('Failed to save data', 'error');
         return false;
     }
