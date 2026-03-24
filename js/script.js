@@ -3,7 +3,7 @@
  * With permanent data storage via localStorage + Export/Import
  */
 
-// ===== PRE-LOADED DATA =====
+// ===== PRE-LOADED DATA (From Rent for Hurstville.xlsx) =====
 const defaultData = [
     { id: "27-Jan-2026", date: "27-Jan-2026", totalRent: 750, iPaid: 750, roommatePaid: 0, netPaid: 750, roommatePaidOn: null, status: "paid", notes: "Bond/Deposit/Advance paid" },
     { id: "2-Feb-2026", date: "2-Feb-2026", totalRent: 750, iPaid: 750, roommatePaid: null, netPaid: 750, roommatePaidOn: null, status: "paid", notes: "Roommate Electricity $770" },
@@ -85,7 +85,7 @@ const toggleTheme = () => {
     localStorage.setItem(THEME_KEY, newTheme);
 };
 
-// ===== LOAD/SAVE DATA - FIXED =====
+// ===== LOAD/SAVE DATA =====
 const loadData = () => {
     try {
         const stored = localStorage.getItem(STORAGE_KEY);
@@ -97,7 +97,6 @@ const loadData = () => {
                 return true;
             }
         }
-        // No valid stored data, use defaults
         currentData = [...defaultData];
         saveData();
         console.log('Using default data:', currentData.length, 'entries');
@@ -573,6 +572,14 @@ const setupEventListeners = () => {
     
     const btnExport = document.getElementById('btnExport');
     if (btnExport) btnExport.addEventListener('click', exportSummary);
+    
+    const btnBackup = document.getElementById('btnBackup');
+    if (btnBackup) btnBackup.addEventListener('click', exportData);
+    
+    const btnImport = document.getElementById('btnImport');
+    if (btnImport) btnImport.addEventListener('click', () => {
+        document.getElementById('importFile').click();
+    });
     
     const btnCloseModal = document.getElementById('btnCloseModal');
     if (btnCloseModal) btnCloseModal.addEventListener('click', window.closeAddModal);
