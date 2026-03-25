@@ -146,6 +146,23 @@ const formatDateForInput = (dateStr) => {
     return dateStr;
 };
 
+const formatDateForDisplay = (dateStr) => {
+    if (!dateStr || dateStr === '') return '-';
+    const months = {
+        '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr',
+        '05': 'May', '06': 'Jun', '07': 'Jul', '08': 'Aug',
+        '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dec'
+    };
+    const parts = String(dateStr).split('-');
+    if (parts.length === 3) {
+        const day = parseInt(parts[2]);
+        const month = months[parts[1]] || parts[1];
+        const year = parts[0];
+        return `${day}-${month}-${year}`;
+    }
+    return dateStr;
+};
+
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
 const getStatusBadge = (status, roommatePaidOn, iPaid) => {
@@ -178,7 +195,10 @@ const showToast = (message, type = 'success') => {
 // ===== RENDER SUMMARY WITH TOTAL PAYMENT DONE =====
 const renderSummary = (data) => {
     const summaryGrid = document.getElementById('summaryGrid');
-    if (!summaryGrid) return;
+    if (!summaryGrid) {
+        console.error('summaryGrid element not found!');
+        return;
+    }
     
     const totalWeeks = data.filter(row => row.date && row.date !== '-').length;
     const totalRent = data.reduce((sum, row) => sum + (row.totalRent || 0), 0);
@@ -199,7 +219,7 @@ const renderSummary = (data) => {
         </div>
         <div class="summary-card">
             <div class="label">Total Payment Done</div>
-            <div class="value" style="color: var(--success);">${formatCurrency(totalPaymentDone)}</div>
+            <div class="value" style="color: var(--success); font-weight: 700;">${formatCurrency(totalPaymentDone)}</div>
         </div>
         <div class="summary-card positive">
             <div class="label">Roommate Contributed</div>
@@ -214,6 +234,8 @@ const renderSummary = (data) => {
             <div class="value">${unpaidCount}</div>
         </div>
     `;
+    
+    console.log('Summary rendered - Total Payment Done:', formatCurrency(totalPaymentDone));
 };
 
 const renderTable = (data) => {
