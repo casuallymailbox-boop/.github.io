@@ -1,7 +1,21 @@
 /**
  * Rent Tracker - Hurstville
- * Using localStorage for reliable data persistence
+ * Using Firebase Firestore for cloud sync across devices
  */
+
+// ===== FIREBASE CONFIGURATION =====
+const firebaseConfig = {
+  apiKey: "AIzaSyAmFh9jdUDC-lgcrHkl06EY2nB50ZT5i_Y",
+  authDomain: "hurstville-rent-tracker.firebaseapp.com",
+  projectId: "hurstville-rent-tracker",
+  storageBucket: "hurstville-rent-tracker.firebasestorage.app",
+  messagingSenderId: "150128012794",
+  appId: "1:150128012794:web:46a8b44d5e332346ccc843"
+};
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
 
 // ===== PRE-LOADED DATA (From Rent for Hurstville.xlsx) =====
 const defaultData = [
@@ -62,40 +76,8 @@ const defaultData = [
 ];
 
 const THEME_KEY = 'hurstville_theme';
-const STORAGE_KEY = 'hurstville_rent_data';
 let currentData = [];
-
-// ===== LOAD DATA ON STARTUP =====
-const loadData = () => {
-    try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-            currentData = JSON.parse(stored);
-            console.log('✅ Loaded', currentData.length, 'entries from localStorage');
-        } else {
-            currentData = [...defaultData];
-            saveData();
-            console.log('✅ Initialized with', currentData.length, 'default entries');
-        }
-        return true;
-    } catch (e) {
-        console.error('❌ Load error:', e);
-        currentData = [...defaultData];
-        return false;
-    }
-};
-
-// ===== SAVE DATA =====
-const saveData = () => {
-    try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData));
-        console.log('✅ Saved', currentData.length, 'entries to localStorage');
-        return true;
-    } catch (e) {
-        console.error('❌ Save error:', e);
-        return false;
-    }
-};
+let unsubscribe = null;
 
 // ===== THEME =====
 const initTheme = () => {
@@ -178,10 +160,7 @@ const showToast = (message, type = 'success') => {
 // ===== RENDER SUMMARY WITH TOTAL PAYMENT DONE =====
 const renderSummary = (data) => {
     const summaryGrid = document.getElementById('summaryGrid');
-    if (!summaryGrid) {
-        console.error('summaryGrid element not found!');
-        return;
-    }
+    if (!summaryGrid) return;
     
     const totalWeeks = data.filter(row => row.date && row.date !== '-').length;
     const totalRent = data.reduce((sum, row) => sum + (row.totalRent || 0), 0);
@@ -217,8 +196,6 @@ const renderSummary = (data) => {
             <div class="value">${unpaidCount}</div>
         </div>
     `;
-    
-    console.log('Summary rendered - Total Payment Done:', formatCurrency(totalPaymentDone));
 };
 
 const renderTable = (data) => {
@@ -341,6 +318,61 @@ const exportSummary = () => {
     showToast('Summary exported!', 'success');
 };
 
+// ===== FIREBASE SYNC (REAL-TIME) =====
+const syncData = () => {
+    const loadingState = document.getElementById('loadingState');
+    if (loadingState) loadingState.style.display = 'block';
+    
+    // Listen for real-time changes from Firestore
+    unsubscribe = db.collection('rentEntries').onSnapshot(
+        (snapshot) => {
+            const data = [];
+            snapshot.forEach((doc) => {
+                data.push({ id: doc.id, ...doc.data() });
+            });
+            
+            // Sort by date
+            data.sort((a, b) => new Date(formatDateForInput(a.date)) - new Date(formatDateForInput(b.date)));
+            
+            currentData = data;
+            
+            renderSummary(currentData);
+            populateMonthFilter(currentData);
+            renderTable(currentData);
+            
+            if (loadingState) loadingState.style.display = 'none';
+            console.log('✅ Synced', currentData.length, 'entries from Firebase');
+        },
+        (error) => {
+            console.error('❌ Sync error:', error);
+            showToast('Sync error - check console', 'error');
+            if (loadingState) loadingState.style.display = 'none';
+        }
+    );
+};
+
+// ===== SEED INITIAL DATA (Only if empty) =====
+const seedInitialData = async () => {
+    try {
+        const snapshot = await db.collection('rentEntries').limit(1).get();
+        
+        if (snapshot.empty) {
+            console.log('📥 Seeding initial data to Firebase...');
+            const batch = db.batch();
+            
+            defaultData.forEach(entry => {
+                const docRef = db.collection('rentEntries').doc(entry.id);
+                batch.set(docRef, entry);
+            });
+            
+            await batch.commit();
+            console.log('✅ Initial data seeded');
+        }
+    } catch (error) {
+        console.error('❌ Seed error:', error);
+    }
+};
+
 // ===== MODAL FUNCTIONS =====
 window.openAddModal = function() {
     const modalOverlay = document.getElementById('modalOverlay');
@@ -401,7 +433,7 @@ window.closeEditModal = function() {
     if (editEntryForm) editEntryForm.reset();
 };
 
-window.saveNewEntry = function(e) {
+window.saveNewEntry = async function(e) {
     if (e) e.preventDefault();
     
     const entryDate = document.getElementById('entryDate');
@@ -444,20 +476,34 @@ window.saveNewEntry = function(e) {
     let status = 'pending';
     if (iPaid && iPaid > 0) status = 'paid';
     
-    const newEntry = { id: generateId(), date, totalRent, iPaid, roommatePaid, netPaid, roommatePaidOn, status, notes };
+    const newEntry = {
+        id: generateId(),
+        date,
+        totalRent,
+        iPaid,
+        roommatePaid,
+        netPaid,
+        roommatePaidOn,
+        status,
+        notes
+    };
     
-    currentData.push(newEntry);
-    currentData.sort((a, b) => new Date(formatDateForInput(a.date)) - new Date(formatDateForInput(b.date)));
-    saveData();
-    
-    renderSummary(currentData);
-    populateMonthFilter(currentData);
-    renderTable(currentData);
-    window.closeAddModal();
-    showToast('Entry saved!', 'success');
+    try {
+        // Save to Firebase
+        await db.collection('rentEntries').doc(newEntry.id).set(newEntry);
+        
+        renderSummary(currentData);
+        populateMonthFilter(currentData);
+        renderTable(currentData);
+        window.closeAddModal();
+        showToast('Entry saved to cloud!', 'success');
+    } catch (error) {
+        console.error('❌ Save error:', error);
+        showToast('Failed to save', 'error');
+    }
 };
 
-window.updateEntry = function(e) {
+window.updateEntry = async function(e) {
     if (e) e.preventDefault();
     
     const editEntryId = document.getElementById('editEntryId');
@@ -474,11 +520,6 @@ window.updateEntry = function(e) {
     }
     
     const id = editEntryId.value;
-    const index = currentData.findIndex(item => item.id === id);
-    if (index === -1) {
-        showToast('Entry not found', 'error');
-        return;
-    }
     
     if (!editDate || !editDate.value) {
         showToast('Select a date', 'error');
@@ -513,14 +554,30 @@ window.updateEntry = function(e) {
     let status = 'pending';
     if (iPaid && iPaid > 0) status = 'paid';
     
-    currentData[index] = { ...currentData[index], date, totalRent, iPaid, roommatePaid, netPaid, roommatePaidOn, status, notes };
-    saveData();
+    const updatedData = {
+        date,
+        totalRent,
+        iPaid,
+        roommatePaid,
+        netPaid,
+        roommatePaidOn,
+        status,
+        notes
+    };
     
-    renderSummary(currentData);
-    populateMonthFilter(currentData);
-    renderTable(currentData);
-    window.closeEditModal();
-    showToast('Entry updated!', 'success');
+    try {
+        // Update in Firebase
+        await db.collection('rentEntries').doc(id).update(updatedData);
+        
+        renderSummary(currentData);
+        populateMonthFilter(currentData);
+        renderTable(currentData);
+        window.closeEditModal();
+        showToast('Entry updated!', 'success');
+    } catch (error) {
+        console.error('❌ Update error:', error);
+        showToast('Failed to update', 'error');
+    }
 };
 
 let deleteTargetId = null;
@@ -537,24 +594,22 @@ window.closeDeleteModal = function() {
     deleteTargetId = null;
 };
 
-window.executeDelete = function() {
+window.executeDelete = async function() {
     if (!deleteTargetId) return;
     
-    const index = currentData.findIndex(item => item.id === deleteTargetId);
-    if (index === -1) {
-        showToast('Entry not found', 'error');
+    try {
+        // Delete from Firebase
+        await db.collection('rentEntries').doc(deleteTargetId).delete();
+        
+        renderSummary(currentData);
+        populateMonthFilter(currentData);
+        renderTable(currentData);
         window.closeDeleteModal();
-        return;
+        showToast('Entry deleted', 'success');
+    } catch (error) {
+        console.error('❌ Delete error:', error);
+        showToast('Failed to delete', 'error');
     }
-    
-    currentData.splice(index, 1);
-    saveData();
-    
-    renderSummary(currentData);
-    populateMonthFilter(currentData);
-    renderTable(currentData);
-    window.closeDeleteModal();
-    showToast('Entry deleted', 'success');
 };
 
 // ===== EVENT LISTENERS =====
@@ -651,15 +706,16 @@ const setupEventListeners = () => {
 };
 
 // ===== INITIALIZE =====
-const init = () => {
-    console.log('🚀 Initializing Rent Tracker...');
+const init = async () => {
+    console.log('🚀 Initializing Rent Tracker with Firebase...');
     
     initTheme();
-    loadData();
     
-    renderSummary(currentData);
-    populateMonthFilter(currentData);
-    renderTable(currentData);
+    // Seed initial data if Firestore is empty
+    await seedInitialData();
+    
+    // Start real-time sync
+    syncData();
     
     const modalOverlay = document.getElementById('modalOverlay');
     const editModalOverlay = document.getElementById('editModalOverlay');
@@ -673,7 +729,7 @@ const init = () => {
     
     setupEventListeners();
     
-    console.log('✅ App initialized with', currentData.length, 'entries');
+    console.log('✅ App initialized - data syncing from Firebase');
 };
 
 if (document.readyState === 'loading') {
