@@ -76,17 +76,17 @@ const defaultData = [
 ];
 
 const THEME_KEY = 'hurstville_theme';
-const BOND_KEY = 'hurstville_bond_data';
 let currentData = [];
 let bondData = {
     myBond: 3000,
     myBondDate: '27-Jan-2026',
     myBondNotes: 'Bond/Deposit/Advance',
-    roommateBond: 0,
-    roommateBondDate: null,
-    roommateBondNotes: ''
+    roommateBond: 770,
+    roommateBondDate: '2-Feb-2026',
+    roommateBondNotes: 'Electricity'
 };
-let unsubscribe = null;
+let unsubscribeRent = null;
+let unsubscribeBond = null;
 
 // ===== THEME =====
 const initTheme = () => {
@@ -105,33 +105,6 @@ const toggleTheme = () => {
     const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', newTheme);
     localStorage.setItem(THEME_KEY, newTheme);
-};
-
-// ===== LOAD/SAVE BOND DATA =====
-const loadBondData = () => {
-    try {
-        const stored = localStorage.getItem(BOND_KEY);
-        if (stored) {
-            bondData = JSON.parse(stored);
-            console.log('✅ Bond data loaded from localStorage');
-        }
-    } catch (e) {
-        console.error('❌ Bond load error:', e);
-    }
-};
-
-const saveBondData = async () => {
-    try {
-        localStorage.setItem(BOND_KEY, JSON.stringify(bondData));
-        await db.collection('bondData').doc('main').set(bondData);
-        console.log('✅ Bond data saved to localStorage and Firebase');
-        return true;
-    } catch (e) {
-        console.error('❌ Bond save error:', e);
-        localStorage.setItem(BOND_KEY, JSON.stringify(bondData));
-        console.log('⚠️ Bond saved to localStorage only (Firebase failed)');
-        return false;
-    }
 };
 
 // ===== UTILITIES =====
@@ -414,12 +387,12 @@ const exportSummary = () => {
     showToast('Summary exported!', 'success');
 };
 
-// ===== FIREBASE SYNC =====
-const syncData = () => {
+// ===== FIREBASE REAL-TIME SYNC =====
+const syncRentData = () => {
     const loadingState = document.getElementById('loadingState');
     if (loadingState) loadingState.style.display = 'block';
     
-    unsubscribe = db.collection('rentEntries').onSnapshot(
+    unsubscribeRent = db.collection('rentEntries').onSnapshot(
         (snapshot) => {
             const data = [];
             snapshot.forEach((doc) => {
@@ -435,32 +408,34 @@ const syncData = () => {
             renderTable(currentData);
             
             if (loadingState) loadingState.style.display = 'none';
-            console.log('✅ Synced', currentData.length, 'entries from Firebase');
+            console.log('✅ Synced', currentData.length, 'rent entries from Firebase');
         },
         (error) => {
-            console.error('❌ Sync error:', error);
+            console.error('❌ Rent sync error:', error);
             showToast('Sync error', 'error');
             if (loadingState) loadingState.style.display = 'none';
         }
     );
 };
 
-const syncBondData = async () => {
-    try {
-        const doc = await db.collection('bondData').doc('main').get();
-        if (doc.exists) {
-            bondData = doc.data();
-            console.log('✅ Bond data synced from Firebase:', bondData);
-        } else {
-            await db.collection('bondData').doc('main').set(bondData);
-            console.log('✅ Bond data seeded to Firebase');
+const syncBondData = () => {
+    // Listen for real-time bond data changes
+    unsubscribeBond = db.collection('bondData').doc('main').onSnapshot(
+        (doc) => {
+            if (doc.exists) {
+                bondData = doc.data();
+                console.log('✅ Bond data synced from Firebase:', bondData);
+            } else {
+                // Initialize with default if doesn't exist
+                db.collection('bondData').doc('main').set(bondData);
+                console.log('✅ Bond data initialized in Firebase');
+            }
+            renderSummary(currentData);
+        },
+        (error) => {
+            console.error('❌ Bond sync error:', error);
         }
-        renderSummary(currentData);
-    } catch (error) {
-        console.error('❌ Bond sync error:', error);
-        console.log('⚠️ Using localStorage bond data');
-        renderSummary(currentData);
-    }
+    );
 };
 
 const seedInitialData = async () => {
@@ -468,7 +443,7 @@ const seedInitialData = async () => {
         const snapshot = await db.collection('rentEntries').limit(1).get();
         
         if (snapshot.empty) {
-            console.log('📥 Seeding initial data...');
+            console.log('📥 Seeding initial rent data...');
             const batch = db.batch();
             
             defaultData.forEach(entry => {
@@ -477,7 +452,7 @@ const seedInitialData = async () => {
             });
             
             await batch.commit();
-            console.log('✅ Initial data seeded');
+            console.log('✅ Initial rent data seeded');
         }
     } catch (error) {
         console.error('❌ Seed error:', error);
@@ -656,9 +631,6 @@ window.saveNewEntry = async function(e) {
     
     try {
         await db.collection('rentEntries').doc(newEntry.id).set(newEntry);
-        renderSummary(currentData);
-        populateMonthFilter(currentData);
-        renderTable(currentData);
         window.closeAddModal();
         showToast('Entry saved!', 'success');
     } catch (error) {
@@ -721,9 +693,6 @@ window.updateEntry = async function(e) {
     
     try {
         await db.collection('rentEntries').doc(id).update(updatedData);
-        renderSummary(currentData);
-        populateMonthFilter(currentData);
-        renderTable(currentData);
         window.closeEditModal();
         showToast('Entry updated!', 'success');
     } catch (error) {
@@ -758,32 +727,23 @@ window.saveBond = async function(e) {
     
     console.log('💾 Saving bond:', bondType, amount, formattedDate, notes);
     
+    // Update bond data and save to Firebase
     if (bondType === 'my') {
-        bondData.myBond = amount;
-        bondData.myBondDate = formattedDate;
-        bondData.myBondNotes = notes;
+        await db.collection('bondData').doc('main').update({
+            myBond: amount,
+            myBondDate: formattedDate,
+            myBondNotes: notes
+        });
     } else {
-        bondData.roommateBond = amount;
-        bondData.roommateBondDate = formattedDate;
-        bondData.roommateBondNotes = notes;
+        await db.collection('bondData').doc('main').update({
+            roommateBond: amount,
+            roommateBondDate: formattedDate,
+            roommateBondNotes: notes
+        });
     }
     
-    console.log('💾 Bond data:', bondData);
-    
-    try {
-        const saved = await saveBondData();
-        renderSummary(currentData);
-        window.closeBondModal();
-        
-        if (saved) {
-            showToast('Bond saved to cloud!', 'success');
-        } else {
-            showToast('Bond saved locally', 'warning');
-        }
-    } catch (error) {
-        console.error('❌ Bond save error:', error);
-        showToast('Failed to save bond', 'error');
-    }
+    window.closeBondModal();
+    showToast('Bond saved to cloud!', 'success');
 };
 
 let deleteTargetId = null;
@@ -805,9 +765,6 @@ window.executeDelete = async function() {
     
     try {
         await db.collection('rentEntries').doc(deleteTargetId).delete();
-        renderSummary(currentData);
-        populateMonthFilter(currentData);
-        renderTable(currentData);
         window.closeDeleteModal();
         showToast('Entry deleted', 'success');
     } catch (error) {
@@ -938,16 +895,21 @@ const setupEventListeners = () => {
     });
 };
 
+// ===== CLEANUP ON UNLOAD =====
+window.addEventListener('beforeunload', () => {
+    if (unsubscribeRent) unsubscribeRent();
+    if (unsubscribeBond) unsubscribeBond();
+});
+
 // ===== INITIALIZE =====
 const init = async () => {
     console.log('🚀 Initializing Rent Tracker with Firebase...');
     
     initTheme();
-    loadBondData();
     
     await seedInitialData();
-    await syncBondData();
-    syncData();
+    syncRentData();
+    syncBondData();
     
     const modalOverlay = document.getElementById('modalOverlay');
     const editModalOverlay = document.getElementById('editModalOverlay');
@@ -965,8 +927,7 @@ const init = async () => {
     
     setupEventListeners();
     
-    console.log('✅ App initialized - data syncing from Firebase');
-    console.log('💾 Bond data:', bondData);
+    console.log('✅ App initialized - real-time sync active');
 };
 
 if (document.readyState === 'loading') {
