@@ -203,7 +203,7 @@ const renderSummary = (data) => {
         <div class="summary-card" style="position: relative;">
             <div class="label">Bond From Me</div>
             <div class="value" style="color: var(--primary);">${formatCurrency(bondData.myBond)}</div>
-            <button class="bond-edit-btn" onclick="window.openBondModal('my')" title="Edit Bond" style="position: absolute; top: 0.5rem; right: 0.5rem; background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 0.9rem; padding: 0.25rem;">
+            <button class="bond-edit-btn" onclick="window.openBondModal('my')" title="Edit Bond" style="position: absolute; top: 0.5rem; right: 0.5rem; background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 0.9rem; padding: 0.25rem; opacity: 0.7;">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="10"/>
                     <path d="M12 16v-4"/>
@@ -214,7 +214,7 @@ const renderSummary = (data) => {
         <div class="summary-card" style="position: relative;">
             <div class="label">Bond From Roommate</div>
             <div class="value" style="color: var(--primary);">${formatCurrency(bondData.roommateBond)}</div>
-            <button class="bond-edit-btn" onclick="window.openBondModal('roommate')" title="Edit Bond" style="position: absolute; top: 0.5rem; right: 0.5rem; background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 0.9rem; padding: 0.25rem;">
+            <button class="bond-edit-btn" onclick="window.openBondModal('roommate')" title="Edit Bond" style="position: absolute; top: 0.5rem; right: 0.5rem; background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 0.9rem; padding: 0.25rem; opacity: 0.7;">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="10"/>
                     <path d="M12 16v-4"/>
@@ -426,7 +426,7 @@ const syncBondData = () => {
                 bondData = doc.data();
                 console.log('✅ Bond data synced from Firebase:', bondData);
             } else {
-                // Initialize with default if doesn't exist - USE SET WITH MERGE
+                // Initialize with default if doesn't exist
                 db.collection('bondData').doc('main').set(bondData, { merge: true })
                     .then(() => {
                         console.log('✅ Bond data initialized in Firebase');
@@ -565,12 +565,15 @@ window.openBondModal = function(type) {
     
     if (!bondModalOverlay) return;
     
+    console.log('🔓 Opening bond modal for:', type);
+    console.log('💾 Current bondData:', bondData);
+    
     bondType.value = type;
     
     if (type === 'my') {
         bondModalTitle.textContent = 'Edit My Bond';
         bondAmount.value = bondData.myBond || '';
-        bondDate.value = formatDateForInput(bondData.myBondDate);
+        bondDate.value = bondData.myBondDate ? formatDateForInput(bondData.myBondDate) : '';
         bondNotes.value = bondData.myBondNotes || '';
     } else {
         bondModalTitle.textContent = 'Edit Roommate\'s Bond';
@@ -740,20 +743,21 @@ window.saveBond = async function(e) {
                 myBondDate: formattedDate,
                 myBondNotes: notes
             }, { merge: true });
+            console.log('✅ My Bond saved to Firebase');
         } else {
             await db.collection('bondData').doc('main').set({
                 roommateBond: amount,
                 roommateBondDate: formattedDate,
                 roommateBondNotes: notes
             }, { merge: true });
+            console.log('✅ Roommate Bond saved to Firebase');
         }
         
-        console.log('✅ Bond saved to Firebase');
         window.closeBondModal();
         showToast('Bond saved to cloud!', 'success');
     } catch (error) {
         console.error('❌ Bond save error:', error);
-        showToast('Failed to save bond', 'error');
+        showToast('Failed to save bond: ' + error.message, 'error');
     }
 };
 
@@ -848,7 +852,12 @@ const setupEventListeners = () => {
     if (editEntryForm) editEntryForm.addEventListener('submit', window.updateEntry);
     
     const bondForm = document.getElementById('bondForm');
-    if (bondForm) bondForm.addEventListener('submit', window.saveBond);
+    if (bondForm) {
+        bondForm.addEventListener('submit', window.saveBond);
+        console.log('✅ Bond form listener attached');
+    } else {
+        console.error('❌ Bond form not found!');
+    }
     
     const searchInput = document.getElementById('searchInput');
     if (searchInput) searchInput.addEventListener('input', filterData);
@@ -939,6 +948,7 @@ const init = async () => {
     setupEventListeners();
     
     console.log('✅ App initialized - real-time sync active');
+    console.log('💾 Initial bondData:', bondData);
 };
 
 if (document.readyState === 'loading') {
