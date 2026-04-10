@@ -934,6 +934,7 @@ const init = async () => {
     setupEventListeners();
     
     console.log('✅ App initialized - Firebase sync active');
+  
 };
 
 if (document.readyState === 'loading') {
