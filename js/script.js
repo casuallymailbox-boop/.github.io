@@ -10,7 +10,7 @@ const GITHUB_CONFIG = {
     repo: 'hurstville-rent-tracker',       // Your repo name
     branch: 'main',                        // Your branch name
     path: 'data/rent-data.json',           // Path to your data file
-    token: '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' // Paste your PAT here
+    token: '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' // Paste your PAT here
 };
 
 // ===== PRE-LOADED DATA (From Rent for Hurstville.xlsx) =====
