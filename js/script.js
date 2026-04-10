@@ -1,21 +1,17 @@
 /**
  * Rent Tracker - Hurstville
- * Using Firebase Firestore for cloud sync across devices
+ * Using GitHub API for personal cloud storage
+ * ⚠️ For personal use only - token is exposed in client-side code
  */
 
-// ===== FIREBASE CONFIGURATION =====
-const firebaseConfig = {
-  apiKey: "AIzaSyAmFh9jdUDC-lgcrHkl06EY2nB50ZT5i_Y",
-  authDomain: "hurstville-rent-tracker.firebaseapp.com",
-  projectId: "hurstville-rent-tracker",
-  storageBucket: "hurstville-rent-tracker.firebasestorage.app",
-  messagingSenderId: "150128012794",
-  appId: "1:150128012794:web:46a8b44d5e332346ccc843"
+// ===== GITHUB CONFIGURATION (UPDATE THESE) =====
+const GITHUB_CONFIG = {
+    owner: 'casuallymailbox-boop',        // Your GitHub username
+    repo: 'hurstville-rent-tracker',       // Your repo name
+    branch: 'main',                        // Your branch name
+    path: 'data/rent-data.json',           // Path to your data file
+    token: 'YOUR_PERSONAL_ACCESS_TOKEN_HERE' // Paste your PAT here
 };
-
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
 
 // ===== PRE-LOADED DATA (From Rent for Hurstville.xlsx) =====
 const defaultData = [
@@ -76,6 +72,7 @@ const defaultData = [
 ];
 
 const THEME_KEY = 'hurstville_theme';
+const LOCAL_STORAGE_KEY = 'hurstville_rent_cache';
 let currentData = [];
 let bondData = {
     myBond: 3000,
@@ -85,8 +82,10 @@ let bondData = {
     roommateBondDate: '2-Feb-2026',
     roommateBondNotes: 'Electricity'
 };
-let unsubscribeRent = null;
-let unsubscribeBond = null;
+let githubData = null;
+let isSyncing = false;
+let lastSyncTime = 0;
+const SYNC_INTERVAL = 60000; // 1 minute between syncs
 
 // ===== THEME =====
 const initTheme = () => {
@@ -166,7 +165,157 @@ const showToast = (message, type = 'success') => {
     }
 };
 
-// ===== RENDER SUMMARY WITH ALL CARDS =====
+// ===== GITHUB API FUNCTIONS =====
+const getGitHubHeaders = () => ({
+    'Authorization': `token ${GITHUB_CONFIG.token}`,
+    'Accept': 'application/vnd.github.v3+json',
+    'Content-Type': 'application/json'
+});
+
+const fetchFromGitHub = async () => {
+    try {
+        const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`;
+        const response = await fetch(url, { headers: getGitHubHeaders() });
+        
+        if (!response.ok) {
+            if (response.status === 404) {
+                console.log('📁 Data file not found in GitHub - using defaults');
+                return null;
+            }
+            throw new Error(`GitHub API error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        const content = atob(data.content); // Decode base64
+        return JSON.parse(content);
+    } catch (error) {
+        console.error('❌ Fetch from GitHub failed:', error);
+        return null;
+    }
+};
+
+const saveToGitHub = async (data) => {
+    try {
+        // First, get the current file to get its SHA
+        const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`;
+        const response = await fetch(url, { headers: getGitHubHeaders() });
+        
+        let sha = null;
+        if (response.ok) {
+            const existing = await response.json();
+            sha = existing.sha;
+        }
+        
+        // Prepare the update
+        const content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2)))); // Encode to base64
+        
+        const body = {
+            message: `Update rent data - ${new Date().toISOString()}`,
+            content: content,
+            branch: GITHUB_CONFIG.branch
+        };
+        
+        if (sha) {
+            body.sha = sha; // Required for updates
+        }
+        
+        const saveResponse = await fetch(url, {
+            method: 'PUT',
+            headers: getGitHubHeaders(),
+            body: JSON.stringify(body)
+        });
+        
+        if (!saveResponse.ok) {
+            const errorData = await saveResponse.json();
+            throw new Error(`GitHub save error: ${errorData.message || saveResponse.status}`);
+        }
+        
+        console.log('✅ Saved to GitHub successfully');
+        return true;
+    } catch (error) {
+        console.error('❌ Save to GitHub failed:', error);
+        return false;
+    }
+};
+
+// ===== LOAD/SAVE WITH FALLBACK =====
+const loadData = async () => {
+    try {
+        // Try GitHub first
+        const githubData = await fetchFromGitHub();
+        
+        if (githubData) {
+            console.log('✅ Loaded data from GitHub');
+            currentData = githubData.rentEntries || [];
+            bondData = githubData.bondData || bondData;
+            
+            // Cache to localStorage for offline use
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(githubData));
+        } else {
+            // Fallback to localStorage
+            const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+            if (stored) {
+                const cached = JSON.parse(stored);
+                currentData = cached.rentEntries || [];
+                bondData = cached.bondData || bondData;
+                console.log('✅ Loaded data from localStorage cache');
+            } else {
+                // Use defaults
+                currentData = [...defaultData];
+                console.log('✅ Using default data');
+            }
+        }
+        
+        renderSummary(currentData);
+        populateMonthFilter(currentData);
+        renderTable(currentData);
+        return true;
+    } catch (error) {
+        console.error('❌ Load error:', error);
+        // Fallback to defaults
+        currentData = [...defaultData];
+        renderSummary(currentData);
+        populateMonthFilter(currentData);
+        renderTable(currentData);
+        return false;
+    }
+};
+
+const saveData = async () => {
+    try {
+        const dataToSave = {
+            rentEntries: currentData,
+            bondData: bondData,
+            lastUpdated: new Date().toISOString()
+        };
+        
+        // Save to GitHub
+        const githubSuccess = await saveToGitHub(dataToSave);
+        
+        // Also cache to localStorage for offline use
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
+        
+        if (githubSuccess) {
+            console.log('✅ Data saved to GitHub and cached locally');
+            return true;
+        } else {
+            console.log('⚠️ Saved to localStorage only (GitHub failed)');
+            return false;
+        }
+    } catch (error) {
+        console.error('❌ Save error:', error);
+        // Still save to localStorage as fallback
+        const dataToSave = {
+            rentEntries: currentData,
+            bondData: bondData,
+            lastUpdated: new Date().toISOString()
+        };
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
+        return false;
+    }
+};
+
+// ===== RENDER FUNCTIONS =====
 const renderSummary = (data) => {
     const summaryGrid = document.getElementById('summaryGrid');
     if (!summaryGrid) return;
@@ -316,7 +465,7 @@ const filterData = () => {
 };
 
 const exportData = () => {
-    const dataStr = JSON.stringify(currentData, null, 2);
+    const dataStr = JSON.stringify({ rentEntries: currentData, bondData }, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -337,15 +486,14 @@ const importData = (event) => {
     reader.onload = async (e) => {
         try {
             const imported = JSON.parse(e.target.result);
-            if (Array.isArray(imported)) {
-                currentData = imported;
+            if (imported.rentEntries && Array.isArray(imported.rentEntries)) {
+                currentData = imported.rentEntries;
+                if (imported.bondData) {
+                    bondData = imported.bondData;
+                }
                 
-                const batch = db.batch();
-                imported.forEach(entry => {
-                    const docRef = db.collection('rentEntries').doc(entry.id);
-                    batch.set(docRef, entry);
-                });
-                await batch.commit();
+                // Save to GitHub
+                await saveData();
                 
                 renderSummary(currentData);
                 populateMonthFilter(currentData);
@@ -385,83 +533,6 @@ const exportSummary = () => {
     XLSX.utils.book_append_sheet(wb, ws, 'Summary');
     XLSX.writeFile(wb, `Rent-Summary-${new Date().toISOString().split('T')[0]}.xlsx`);
     showToast('Summary exported!', 'success');
-};
-
-// ===== FIREBASE REAL-TIME SYNC =====
-const syncRentData = () => {
-    const loadingState = document.getElementById('loadingState');
-    if (loadingState) loadingState.style.display = 'block';
-    
-    unsubscribeRent = db.collection('rentEntries').onSnapshot(
-        (snapshot) => {
-            const data = [];
-            snapshot.forEach((doc) => {
-                data.push({ id: doc.id, ...doc.data() });
-            });
-            
-            data.sort((a, b) => new Date(formatDateForInput(a.date)) - new Date(formatDateForInput(b.date)));
-            
-            currentData = data;
-            
-            renderSummary(currentData);
-            populateMonthFilter(currentData);
-            renderTable(currentData);
-            
-            if (loadingState) loadingState.style.display = 'none';
-            console.log('✅ Synced', currentData.length, 'rent entries from Firebase');
-        },
-        (error) => {
-            console.error('❌ Rent sync error:', error);
-            showToast('Sync error', 'error');
-            if (loadingState) loadingState.style.display = 'none';
-        }
-    );
-};
-
-const syncBondData = () => {
-    // Listen for real-time bond data changes
-    unsubscribeBond = db.collection('bondData').doc('main').onSnapshot(
-        (doc) => {
-            if (doc.exists) {
-                bondData = doc.data();
-                console.log('✅ Bond data synced from Firebase:', bondData);
-            } else {
-                // Initialize with default if doesn't exist
-                db.collection('bondData').doc('main').set(bondData, { merge: true })
-                    .then(() => {
-                        console.log('✅ Bond data initialized in Firebase');
-                    })
-                    .catch((error) => {
-                        console.error('❌ Bond init error:', error);
-                    });
-            }
-            renderSummary(currentData);
-        },
-        (error) => {
-            console.error('❌ Bond sync error:', error);
-        }
-    );
-};
-
-const seedInitialData = async () => {
-    try {
-        const snapshot = await db.collection('rentEntries').limit(1).get();
-        
-        if (snapshot.empty) {
-            console.log('📥 Seeding initial rent data...');
-            const batch = db.batch();
-            
-            defaultData.forEach(entry => {
-                const docRef = db.collection('rentEntries').doc(entry.id);
-                batch.set(docRef, entry);
-            });
-            
-            await batch.commit();
-            console.log('✅ Initial rent data seeded');
-        }
-    } catch (error) {
-        console.error('❌ Seed error:', error);
-    }
 };
 
 // ===== MODAL FUNCTIONS =====
@@ -565,9 +636,6 @@ window.openBondModal = function(type) {
     
     if (!bondModalOverlay) return;
     
-    console.log('🔓 Opening bond modal for:', type);
-    console.log('💾 Current bondData:', bondData);
-    
     bondType.value = type;
     
     if (type === 'my') {
@@ -637,13 +705,22 @@ window.saveNewEntry = async function(e) {
     
     const newEntry = { id: generateId(), date, totalRent, iPaid, roommatePaid, netPaid, roommatePaidOn, status, notes };
     
-    try {
-        await db.collection('rentEntries').doc(newEntry.id).set(newEntry);
-        window.closeAddModal();
-        showToast('Entry saved!', 'success');
-    } catch (error) {
-        console.error('❌ Save error:', error);
-        showToast('Failed to save', 'error');
+    // Add to local data immediately for instant UI update
+    currentData.push(newEntry);
+    currentData.sort((a, b) => new Date(formatDateForInput(a.date)) - new Date(formatDateForInput(b.date)));
+    renderSummary(currentData);
+    populateMonthFilter(currentData);
+    renderTable(currentData);
+    window.closeAddModal();
+    
+    // Save to GitHub in background
+    showToast('Saving to GitHub...', 'loading');
+    const saved = await saveData();
+    
+    if (saved) {
+        showToast('Entry saved to GitHub!', 'success');
+    } else {
+        showToast('Saved locally (GitHub failed)', 'warning');
     }
 };
 
@@ -664,6 +741,11 @@ window.updateEntry = async function(e) {
     }
     
     const id = editEntryId.value;
+    const index = currentData.findIndex(item => item.id === id);
+    if (index === -1) {
+        showToast('Entry not found', 'error');
+        return;
+    }
     
     if (!editDate || !editDate.value) {
         showToast('Select a date', 'error');
@@ -697,15 +779,21 @@ window.updateEntry = async function(e) {
     let status = 'pending';
     if (iPaid && iPaid > 0) status = 'paid';
     
-    const updatedData = { date, totalRent, iPaid, roommatePaid, netPaid, roommatePaidOn, status, notes };
+    // Update local data immediately
+    currentData[index] = { ...currentData[index], date, totalRent, iPaid, roommatePaid, netPaid, roommatePaidOn, status, notes };
+    renderSummary(currentData);
+    populateMonthFilter(currentData);
+    renderTable(currentData);
+    window.closeEditModal();
     
-    try {
-        await db.collection('rentEntries').doc(id).update(updatedData);
-        window.closeEditModal();
-        showToast('Entry updated!', 'success');
-    } catch (error) {
-        console.error('❌ Update error:', error);
-        showToast('Failed to update', 'error');
+    // Save to GitHub in background
+    showToast('Saving to GitHub...', 'loading');
+    const saved = await saveData();
+    
+    if (saved) {
+        showToast('Entry updated in GitHub!', 'success');
+    } else {
+        showToast('Updated locally (GitHub failed)', 'warning');
     }
 };
 
@@ -733,31 +821,28 @@ window.saveBond = async function(e) {
         formattedDate = `${dateObj.getDate()}-${months[dateObj.getMonth()]}-${dateObj.getFullYear()}`;
     }
     
-    console.log('💾 Saving bond:', bondType, amount, formattedDate, notes);
+    // Update local bond data immediately
+    if (bondType === 'my') {
+        bondData.myBond = amount;
+        bondData.myBondDate = formattedDate;
+        bondData.myBondNotes = notes;
+    } else {
+        bondData.roommateBond = amount;
+        bondData.roommateBondDate = formattedDate;
+        bondData.roommateBondNotes = notes;
+    }
     
-    try {
-        // USE SET WITH MERGE - This creates the document if it doesn't exist
-        if (bondType === 'my') {
-            await db.collection('bondData').doc('main').set({
-                myBond: amount,
-                myBondDate: formattedDate,
-                myBondNotes: notes
-            }, { merge: true });
-            console.log('✅ My Bond saved to Firebase');
-        } else {
-            await db.collection('bondData').doc('main').set({
-                roommateBond: amount,
-                roommateBondDate: formattedDate,
-                roommateBondNotes: notes
-            }, { merge: true });
-            console.log('✅ Roommate Bond saved to Firebase');
-        }
-        
-        window.closeBondModal();
-        showToast('Bond saved to cloud!', 'success');
-    } catch (error) {
-        console.error('❌ Bond save error:', error);
-        showToast('Failed to save bond: ' + error.message, 'error');
+    renderSummary(currentData);
+    window.closeBondModal();
+    
+    // Save to GitHub in background
+    showToast('Saving bond to GitHub...', 'loading');
+    const saved = await saveData();
+    
+    if (saved) {
+        showToast('Bond saved to GitHub!', 'success');
+    } else {
+        showToast('Bond saved locally (GitHub failed)', 'warning');
     }
 };
 
@@ -778,13 +863,28 @@ window.closeDeleteModal = function() {
 window.executeDelete = async function() {
     if (!deleteTargetId) return;
     
-    try {
-        await db.collection('rentEntries').doc(deleteTargetId).delete();
+    // Remove from local data immediately
+    const index = currentData.findIndex(item => item.id === deleteTargetId);
+    if (index === -1) {
+        showToast('Entry not found', 'error');
         window.closeDeleteModal();
-        showToast('Entry deleted', 'success');
-    } catch (error) {
-        console.error('❌ Delete error:', error);
-        showToast('Failed to delete', 'error');
+        return;
+    }
+    
+    currentData.splice(index, 1);
+    renderSummary(currentData);
+    populateMonthFilter(currentData);
+    renderTable(currentData);
+    window.closeDeleteModal();
+    
+    // Save to GitHub in background
+    showToast('Deleting from GitHub...', 'loading');
+    const saved = await saveData();
+    
+    if (saved) {
+        showToast('Entry deleted from GitHub', 'success');
+    } else {
+        showToast('Deleted locally (GitHub failed)', 'warning');
     }
 };
 
@@ -852,12 +952,7 @@ const setupEventListeners = () => {
     if (editEntryForm) editEntryForm.addEventListener('submit', window.updateEntry);
     
     const bondForm = document.getElementById('bondForm');
-    if (bondForm) {
-        bondForm.addEventListener('submit', window.saveBond);
-        console.log('✅ Bond form listener attached');
-    } else {
-        console.error('❌ Bond form not found!');
-    }
+    if (bondForm) bondForm.addEventListener('submit', window.saveBond);
     
     const searchInput = document.getElementById('searchInput');
     if (searchInput) searchInput.addEventListener('input', filterData);
@@ -915,21 +1010,20 @@ const setupEventListeners = () => {
     });
 };
 
-// ===== CLEANUP ON UNLOAD =====
-window.addEventListener('beforeunload', () => {
-    if (unsubscribeRent) unsubscribeRent();
-    if (unsubscribeBond) unsubscribeBond();
-});
-
 // ===== INITIALIZE =====
 const init = async () => {
-    console.log('🚀 Initializing Rent Tracker with Firebase...');
+    console.log('🚀 Initializing Rent Tracker with GitHub storage...');
+    console.log('⚠️  Personal use only - token is in client-side code');
+    
+    // Validate config
+    if (GITHUB_CONFIG.token === 'YOUR_PERSONAL_ACCESS_TOKEN_HERE') {
+        console.error('❌ Please update GITHUB_CONFIG.token with your Personal Access Token');
+        showToast('Configure GitHub token in script.js', 'error');
+        return;
+    }
     
     initTheme();
-    
-    await seedInitialData();
-    syncRentData();
-    syncBondData();
+    await loadData();
     
     const modalOverlay = document.getElementById('modalOverlay');
     const editModalOverlay = document.getElementById('editModalOverlay');
@@ -947,8 +1041,7 @@ const init = async () => {
     
     setupEventListeners();
     
-    console.log('✅ App initialized - real-time sync active');
-    console.log('💾 Initial bondData:', bondData);
+    console.log('✅ App initialized - data stored in GitHub');
 };
 
 if (document.readyState === 'loading') {
