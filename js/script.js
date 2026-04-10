@@ -1,6 +1,7 @@
 /**
  * Rent Tracker - Hurstville
  * Using Firebase Firestore for PERMANENT cloud storage
+ * Data from: Rent for Hurstville.xlsx
  */
 
 // ===== FIREBASE CONFIGURATION =====
