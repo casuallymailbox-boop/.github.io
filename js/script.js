@@ -15,7 +15,9 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-firebase.initializeApp(firebaseConfig);
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
 const db = firebase.firestore();
 
 // ===== PRE-LOADED DATA (From Rent for Hurstville.xlsx) =====
@@ -479,6 +481,7 @@ const syncRentData = () => {
 };
 
 const syncUtilityData = () => {
+    console.log('🔄 Starting Utility Sync...');
     unsubscribeUtility = db.collection('utilities').onSnapshot(
         (snapshot) => {
             const data = [];
@@ -490,8 +493,16 @@ const syncUtilityData = () => {
             data.sort((a, b) => new Date(formatDateForInput(b.date)) - new Date(formatDateForInput(a.date)));
             
             utilityData = data;
-            renderSummary(currentData); // Re-render summary to include utility totals
-            console.log('✅ Synced', utilityData.length, 'utility entries from Firebase');
+            console.log('✅ Utility Data Updated:', utilityData.length, 'items');
+            
+            // CRITICAL: Re-render summary and report if open
+            renderSummary(currentData); 
+            
+            // If report modal is open, refresh it
+            const reportModal = document.getElementById('reportModalOverlay');
+            if (reportModal && reportModal.style.display === 'flex') {
+                generateUtilityReport();
+            }
         },
         (error) => {
             console.error('❌ Utility sync error:', error);
