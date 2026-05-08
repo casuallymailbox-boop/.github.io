@@ -86,7 +86,7 @@
                     <span>Add Utility</span>
                 </button>
 
-                <!-- NEW: Utility Report Button -->
+                <!-- Utility Report Button -->
                 <button class="btn-export" id="btnUtilityReport" style="background-color: #8b5cf6; color: white;">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -374,7 +374,62 @@
         </div>
     </div>
 
-    <!-- NEW: Utility Report Modal -->
+    <!-- NEW: Edit Utility Modal -->
+    <div class="modal-overlay" id="editUtilityModalOverlay" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Edit Utility Bill</h2>
+                <button class="btn-close" id="btnCloseEditUtilityModal" aria-label="Close modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="editUtilityForm">
+                    <input type="hidden" id="editUtilityId">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editUtilityDate">Date *</label>
+                            <input type="date" id="editUtilityDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editUtilityType">Type *</label>
+                            <select id="editUtilityType" required>
+                                <option value="Electricity">Electricity</option>
+                                <option value="Gas">Gas</option>
+                                <option value="Internet">Internet</option>
+                                <option value="Misc">Miscellaneous</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editUtilityAmount">Total Amount ($)</label>
+                            <input type="number" id="editUtilityAmount" step="0.01" placeholder="0.00" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editUtilityPaidBy">Paid By</label>
+                            <select id="editUtilityPaidBy">
+                                <option value="Me">Me</option>
+                                <option value="Roommate">Roommate</option>
+                                <option value="Split">Split 50/50</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editUtilityNotes">Notes (Optional)</label>
+                        <textarea id="editUtilityNotes" rows="2" placeholder="Account number, meter reading, etc."></textarea>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn-cancel" id="btnCancelEditUtility">Cancel</button>
+                        <button type="submit" class="btn-save">Update Utility</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Utility Report Modal -->
     <div class="modal-overlay" id="reportModalOverlay" style="display: none;">
         <div class="modal" style="max-width: 700px;">
             <div class="modal-header">
@@ -412,6 +467,6 @@
         <p>Hurstville Rent Tracker • Real-time sync via Firebase • Data stored in Google Cloud</p>
     </footer>
 
-    <script src="js/script.js?v=3"></script>
+    <script src="js/script.js?v=4"></script>
 </body>
 </html>
