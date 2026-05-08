@@ -1,7 +1,7 @@
 /**
  * Rent Tracker - Hurstville
  * Using Firebase Firestore for PERMANENT cloud storage
- * Data from: Rent for Hurstville.xlsx
+ * Includes: Rent & Utilities (Gas, Elec, Internet, Misc)
  */
 
 // ===== FIREBASE CONFIGURATION =====
@@ -78,6 +78,7 @@ const defaultData = [
 
 const THEME_KEY = 'hurstville_theme';
 let currentData = [];
+let utilityData = []; // New array for utilities
 let bondData = {
     myBond: 3000,
     myBondDate: '27-Jan-2026',
@@ -87,6 +88,7 @@ let bondData = {
     roommateBondNotes: 'Electricity'
 };
 let unsubscribeRent = null;
+let unsubscribeUtility = null;
 let unsubscribeBond = null;
 
 // ===== THEME =====
@@ -180,6 +182,19 @@ const renderSummary = (data) => {
     const unpaidCount = data.filter(row => !row.iPaid || row.iPaid === 0).length;
     const totalPaymentDone = totalIPaid + totalRoommate;
 
+    // Calculate Utility Totals
+    const totalUtilities = utilityData.reduce((sum, u) => sum + (parseFloat(u.amount) || 0), 0);
+    const myUtilities = utilityData.filter(u => u.paidBy === 'Me').reduce((sum, u) => sum + (parseFloat(u.amount) || 0), 0);
+    const roommateUtilities = utilityData.filter(u => u.paidBy === 'Roommate').reduce((sum, u) => sum + (parseFloat(u.amount) || 0), 0);
+    const splitUtilities = utilityData.filter(u => u.paidBy === 'Split').reduce((sum, u) => sum + (parseFloat(u.amount) || 0), 0);
+    
+    // For split, each pays half
+    const myShareSplit = splitUtilities / 2;
+    const roommateShareSplit = splitUtilities / 2;
+
+    const totalMyUtilities = myUtilities + myShareSplit;
+    const totalRoommateUtilities = roommateUtilities + roommateShareSplit;
+
     summaryGrid.innerHTML = `
         <div class="summary-card">
             <div class="label">Total Weeks</div>
@@ -198,9 +213,24 @@ const renderSummary = (data) => {
             <div class="value">${formatCurrency(totalRoommate)}</div>
         </div>
         <div class="summary-card ${netTotal < 0 ? 'negative' : 'positive'}">
-            <div class="label">Net Paid</div>
+            <div class="label">Net Paid (Rent)</div>
             <div class="value">${formatCurrency(netTotal)}</div>
         </div>
+        
+        <!-- Utility Cards -->
+        <div class="summary-card" style="border-color: #f59e0b;">
+            <div class="label">Total Utilities</div>
+            <div class="value" style="color: #f59e0b;">${formatCurrency(totalUtilities)}</div>
+        </div>
+        <div class="summary-card" style="border-color: #f59e0b;">
+            <div class="label">My Utilities</div>
+            <div class="value" style="color: #f59e0b;">${formatCurrency(totalMyUtilities)}</div>
+        </div>
+        <div class="summary-card" style="border-color: #f59e0b;">
+            <div class="label">Roommate Utilities</div>
+            <div class="value" style="color: #f59e0b;">${formatCurrency(totalRoommateUtilities)}</div>
+        </div>
+
         <div class="summary-card" style="position: relative;">
             <div class="label">Bond From Me</div>
             <div class="value" style="color: var(--primary);">${formatCurrency(bondData.myBond)}</div>
@@ -317,7 +347,7 @@ const filterData = () => {
 };
 
 const exportData = () => {
-    const dataStr = JSON.stringify(currentData, null, 2);
+    const dataStr = JSON.stringify({ rent: currentData, utilities: utilityData }, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -338,19 +368,25 @@ const importData = (event) => {
     reader.onload = async (e) => {
         try {
             const imported = JSON.parse(e.target.result);
-            if (Array.isArray(imported)) {
-                currentData = imported;
-                
-                const batch = db.batch();
-                imported.forEach(entry => {
+            if (imported.rent && Array.isArray(imported.rent)) {
+                // Import Rent
+                const batchRent = db.batch();
+                imported.rent.forEach(entry => {
                     const docRef = db.collection('rentEntries').doc(entry.id);
-                    batch.set(docRef, entry);
+                    batchRent.set(docRef, entry);
                 });
-                await batch.commit();
+                await batchRent.commit();
+
+                // Import Utilities if present
+                if (imported.utilities && Array.isArray(imported.utilities)) {
+                    const batchUtil = db.batch();
+                    imported.utilities.forEach(entry => {
+                        const docRef = db.collection('utilities').doc(entry.id);
+                        batchUtil.set(docRef, entry);
+                    });
+                    await batchUtil.commit();
+                }
                 
-                renderSummary(currentData);
-                populateMonthFilter(currentData);
-                renderTable(currentData);
                 showToast('Imported!', 'success');
             }
         } catch (err) {
@@ -367,18 +403,22 @@ const exportSummary = () => {
     const totalRoommate = currentData.reduce((sum, row) => sum + (row.roommatePaid || 0), 0);
     const netTotal = currentData.reduce((sum, row) => sum + (row.netPaid || 0), 0);
     
+    // Utility Calcs
+    const totalUtilities = utilityData.reduce((sum, u) => sum + (parseFloat(u.amount) || 0), 0);
+    const myUtilities = utilityData.filter(u => u.paidBy === 'Me').reduce((sum, u) => sum + (parseFloat(u.amount) || 0), 0);
+    const roommateUtilities = utilityData.filter(u => u.paidBy === 'Roommate').reduce((sum, u) => sum + (parseFloat(u.amount) || 0), 0);
+    const splitUtilities = utilityData.filter(u => u.paidBy === 'Split').reduce((sum, u) => sum + (parseFloat(u.amount) || 0), 0);
+    
     const summary = [
-        ['Hurstville Rent Summary'],
+        ['Hurstville Rent & Utility Summary'],
         ['Generated:', new Date().toLocaleDateString()],
         [],
-        ['Metric', 'Value'],
-        ['Total Weeks', totalWeeks],
-        ['Total Rent', totalRent],
-        ['I Paid', totalIPaid],
-        ['Roommate Contributed', totalRoommate],
-        ['Net Paid', netTotal],
-        ['Bond From Me', bondData.myBond],
-        ['Bond From Roommate', bondData.roommateBond]
+        ['Category', 'Total', 'My Share', 'Roommate Share'],
+        ['Rent', totalRent, totalIPaid, totalRoommate],
+        ['Net Rent Diff', netTotal, '', ''],
+        ['Utilities', totalUtilities, myUtilities + (splitUtilities/2), roommateUtilities + (splitUtilities/2)],
+        ['Bond From Me', bondData.myBond, '', ''],
+        ['Bond From Roommate', bondData.roommateBond, '', '']
     ];
     
     const ws = XLSX.utils.aoa_to_sheet(summary);
@@ -415,6 +455,27 @@ const syncRentData = () => {
             console.error('❌ Rent sync error:', error);
             showToast('Sync error', 'error');
             if (loadingState) loadingState.style.display = 'none';
+        }
+    );
+};
+
+const syncUtilityData = () => {
+    unsubscribeUtility = db.collection('utilities').onSnapshot(
+        (snapshot) => {
+            const data = [];
+            snapshot.forEach((doc) => {
+                data.push({ id: doc.id, ...doc.data() });
+            });
+            
+            // Sort by date descending (newest first)
+            data.sort((a, b) => new Date(formatDateForInput(b.date)) - new Date(formatDateForInput(a.date)));
+            
+            utilityData = data;
+            renderSummary(currentData); // Re-render summary to include utility totals
+            console.log('✅ Synced', utilityData.length, 'utility entries from Firebase');
+        },
+        (error) => {
+            console.error('❌ Utility sync error:', error);
         }
     );
 };
@@ -484,6 +545,64 @@ window.closeAddModal = function() {
     const addEntryForm = document.getElementById('addEntryForm');
     if (modalOverlay) modalOverlay.style.display = 'none';
     if (addEntryForm) addEntryForm.reset();
+};
+
+// ===== UTILITY MODAL FUNCTIONS =====
+window.openUtilityModal = function() {
+    const modalOverlay = document.getElementById('utilityModalOverlay');
+    const utilityForm = document.getElementById('utilityForm');
+    const utilityDate = document.getElementById('utilityDate');
+    
+    if (!modalOverlay) return;
+    if (utilityForm) utilityForm.reset();
+    if (utilityDate) utilityDate.valueAsDate = new Date();
+    
+    modalOverlay.style.display = 'flex';
+    if (utilityDate) utilityDate.focus();
+};
+
+window.closeUtilityModal = function() {
+    const modalOverlay = document.getElementById('utilityModalOverlay');
+    const utilityForm = document.getElementById('utilityForm');
+    if (modalOverlay) modalOverlay.style.display = 'none';
+    if (utilityForm) utilityForm.reset();
+};
+
+window.saveUtility = async function(e) {
+    if (e) e.preventDefault();
+    
+    const utilityDate = document.getElementById('utilityDate');
+    const utilityType = document.getElementById('utilityType');
+    const utilityAmount = document.getElementById('utilityAmount');
+    const utilityPaidBy = document.getElementById('utilityPaidBy');
+    const utilityNotes = document.getElementById('utilityNotes');
+    
+    if (!utilityDate || !utilityDate.value || !utilityAmount || !utilityAmount.value) {
+        showToast('Please fill in required fields', 'error');
+        return;
+    }
+    
+    const dateObj = new Date(utilityDate.value);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const date = `${dateObj.getDate()}-${months[dateObj.getMonth()]}-${dateObj.getFullYear()}`;
+    
+    const newUtility = {
+        id: generateId(),
+        date: date,
+        type: utilityType.value,
+        amount: parseFloat(utilityAmount.value),
+        paidBy: utilityPaidBy.value,
+        notes: utilityNotes ? utilityNotes.value : ''
+    };
+    
+    try {
+        await db.collection('utilities').doc(newUtility.id).set(newUtility);
+        window.closeUtilityModal();
+        showToast('Utility saved!', 'success');
+    } catch (error) {
+        console.error('❌ Utility save error:', error);
+        showToast('Failed to save utility', 'error');
+    }
 };
 
 window.openEditModal = function(id) {
@@ -787,6 +906,10 @@ const setupEventListeners = () => {
     const btnAddEntry = document.getElementById('btnAddEntry');
     if (btnAddEntry) btnAddEntry.addEventListener('click', window.openAddModal);
     
+    // NEW: Utility Button Listener
+    const btnAddUtility = document.getElementById('btnAddUtility');
+    if (btnAddUtility) btnAddUtility.addEventListener('click', window.openUtilityModal);
+    
     const btnAddFromEmpty = document.getElementById('btnAddFromEmpty');
     if (btnAddFromEmpty) btnAddFromEmpty.addEventListener('click', window.openAddModal);
     
@@ -836,6 +959,16 @@ const setupEventListeners = () => {
     const btnConfirmDelete = document.getElementById('btnConfirmDelete');
     if (btnConfirmDelete) btnConfirmDelete.addEventListener('click', window.executeDelete);
     
+    // NEW: Utility Modal Listeners
+    const btnCloseUtilityModal = document.getElementById('btnCloseUtilityModal');
+    if (btnCloseUtilityModal) btnCloseUtilityModal.addEventListener('click', window.closeUtilityModal);
+    
+    const btnCancelUtility = document.getElementById('btnCancelUtility');
+    if (btnCancelUtility) btnCancelUtility.addEventListener('click', window.closeUtilityModal);
+    
+    const utilityForm = document.getElementById('utilityForm');
+    if (utilityForm) utilityForm.addEventListener('submit', window.saveUtility);
+    
     const addEntryForm = document.getElementById('addEntryForm');
     if (addEntryForm) addEntryForm.addEventListener('submit', window.saveNewEntry);
     
@@ -877,6 +1010,11 @@ const setupEventListeners = () => {
         if (e.target === bondModalOverlay) window.closeBondModal();
     });
     
+    const utilityModalOverlay = document.getElementById('utilityModalOverlay');
+    if (utilityModalOverlay) utilityModalOverlay.addEventListener('click', (e) => {
+        if (e.target === utilityModalOverlay) window.closeUtilityModal();
+    });
+    
     const deleteModalOverlay = document.getElementById('deleteModalOverlay');
     if (deleteModalOverlay) deleteModalOverlay.addEventListener('click', (e) => {
         if (e.target === deleteModalOverlay) window.closeDeleteModal();
@@ -889,6 +1027,7 @@ const setupEventListeners = () => {
             const deleteModal = document.getElementById('deleteModalOverlay');
             const notesModal = document.getElementById('notesModalOverlay');
             const bondModal = document.getElementById('bondModalOverlay');
+            const utilityModal = document.getElementById('utilityModalOverlay');
             const toast = document.getElementById('toast');
             
             if (modal && modal.style.display === 'flex') window.closeAddModal();
@@ -896,6 +1035,7 @@ const setupEventListeners = () => {
             if (deleteModal && deleteModal.style.display === 'flex') window.closeDeleteModal();
             if (notesModal && notesModal.style.display === 'flex') window.closeNotesModal();
             if (bondModal && bondModal.style.display === 'flex') window.closeBondModal();
+            if (utilityModal && utilityModal.style.display === 'flex') window.closeUtilityModal();
             if (toast && toast.style.display === 'flex') toast.style.display = 'none';
         }
     });
@@ -904,6 +1044,7 @@ const setupEventListeners = () => {
 // ===== CLEANUP ON UNLOAD =====
 window.addEventListener('beforeunload', () => {
     if (unsubscribeRent) unsubscribeRent();
+    if (unsubscribeUtility) unsubscribeUtility();
     if (unsubscribeBond) unsubscribeBond();
 });
 
@@ -915,6 +1056,7 @@ const init = async () => {
     
     await seedInitialData();
     syncRentData();
+    syncUtilityData(); // Start syncing utilities
     syncBondData();
     
     const modalOverlay = document.getElementById('modalOverlay');
@@ -922,6 +1064,7 @@ const init = async () => {
     const deleteModalOverlay = document.getElementById('deleteModalOverlay');
     const notesModalOverlay = document.getElementById('notesModalOverlay');
     const bondModalOverlay = document.getElementById('bondModalOverlay');
+    const utilityModalOverlay = document.getElementById('utilityModalOverlay');
     const toast = document.getElementById('toast');
     
     if (modalOverlay) modalOverlay.style.display = 'none';
@@ -929,12 +1072,12 @@ const init = async () => {
     if (deleteModalOverlay) deleteModalOverlay.style.display = 'none';
     if (notesModalOverlay) notesModalOverlay.style.display = 'none';
     if (bondModalOverlay) bondModalOverlay.style.display = 'none';
+    if (utilityModalOverlay) utilityModalOverlay.style.display = 'none';
     if (toast) toast.style.display = 'none';
     
     setupEventListeners();
     
     console.log('✅ App initialized - Firebase sync active');
-  
 };
 
 if (document.readyState === 'loading') {
