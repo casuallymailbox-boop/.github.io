@@ -183,7 +183,6 @@ const renderSummary = (data) => {
     const totalPaymentDone = totalIPaid + totalRoommate;
 
     // Calculate Utility Totals
-    const totalUtilities = utilityData.reduce((sum, u) => sum + (parseFloat(u.amount) || 0), 0);
     const myUtilities = utilityData.filter(u => u.paidBy === 'Me').reduce((sum, u) => sum + (parseFloat(u.amount) || 0), 0);
     const roommateUtilities = utilityData.filter(u => u.paidBy === 'Roommate').reduce((sum, u) => sum + (parseFloat(u.amount) || 0), 0);
     const splitUtilities = utilityData.filter(u => u.paidBy === 'Split').reduce((sum, u) => sum + (parseFloat(u.amount) || 0), 0);
@@ -198,6 +197,8 @@ const renderSummary = (data) => {
     // NEW: Specific Utility Breakdown for Summary
     const elecTotal = utilityData.filter(u => u.type === 'Electricity').reduce((sum, u) => sum + (parseFloat(u.amount) || 0), 0);
     const gasTotal = utilityData.filter(u => u.type === 'Gas').reduce((sum, u) => sum + (parseFloat(u.amount) || 0), 0);
+    const internetTotal = utilityData.filter(u => u.type === 'Internet').reduce((sum, u) => sum + (parseFloat(u.amount) || 0), 0);
+    const miscTotal = utilityData.filter(u => u.type === 'Misc').reduce((sum, u) => sum + (parseFloat(u.amount) || 0), 0);
 
     summaryGrid.innerHTML = `
         <div class="summary-card">
@@ -223,15 +224,11 @@ const renderSummary = (data) => {
         
         <!-- Utility Cards -->
         <div class="summary-card" style="border-color: #f59e0b;">
-            <div class="label">Total Utilities</div>
-            <div class="value" style="color: #f59e0b;">${formatCurrency(totalUtilities)}</div>
-        </div>
-        <div class="summary-card" style="border-color: #f59e0b;">
-            <div class="label">My Utilities</div>
+            <div class="label">My Utilities Share</div>
             <div class="value" style="color: #f59e0b;">${formatCurrency(totalMyUtilities)}</div>
         </div>
         <div class="summary-card" style="border-color: #f59e0b;">
-            <div class="label">Roommate Utilities</div>
+            <div class="label">Roommate Util Share</div>
             <div class="value" style="color: #f59e0b;">${formatCurrency(totalRoommateUtilities)}</div>
         </div>
 
@@ -243,6 +240,14 @@ const renderSummary = (data) => {
         <div class="summary-card" style="border-color: #ef4444;">
             <div class="label">Total Gas</div>
             <div class="value" style="color: #ef4444;">${formatCurrency(gasTotal)}</div>
+        </div>
+        <div class="summary-card" style="border-color: #10b981;">
+            <div class="label">Total Internet</div>
+            <div class="value" style="color: #10b981;">${formatCurrency(internetTotal)}</div>
+        </div>
+        <div class="summary-card" style="border-color: #8b5cf6;">
+            <div class="label">Total Misc</div>
+            <div class="value" style="color: #8b5cf6;">${formatCurrency(miscTotal)}</div>
         </div>
 
         <div class="summary-card" style="position: relative;">
@@ -619,6 +624,86 @@ window.saveUtility = async function(e) {
     }
 };
 
+// ===== EDIT UTILITY FUNCTIONS =====
+window.openEditUtilityModal = function(id) {
+    const editModalOverlay = document.getElementById('editUtilityModalOverlay');
+    if (!editModalOverlay) return;
+    
+    const entry = utilityData.find(item => item.id === id);
+    if (!entry) {
+        showToast('Utility entry not found', 'error');
+        return;
+    }
+    
+    const editUtilityId = document.getElementById('editUtilityId');
+    const editUtilityDate = document.getElementById('editUtilityDate');
+    const editUtilityType = document.getElementById('editUtilityType');
+    const editUtilityAmount = document.getElementById('editUtilityAmount');
+    const editUtilityPaidBy = document.getElementById('editUtilityPaidBy');
+    const editUtilityNotes = document.getElementById('editUtilityNotes');
+    
+    if (editUtilityId) editUtilityId.value = id;
+    if (editUtilityDate) editUtilityDate.value = formatDateForInput(entry.date);
+    if (editUtilityType) editUtilityType.value = entry.type;
+    if (editUtilityAmount) editUtilityAmount.value = entry.amount;
+    if (editUtilityPaidBy) editUtilityPaidBy.value = entry.paidBy;
+    if (editUtilityNotes) editUtilityNotes.value = entry.notes || '';
+    
+    editModalOverlay.style.display = 'flex';
+    if (editUtilityDate) editUtilityDate.focus();
+};
+
+window.closeEditUtilityModal = function() {
+    const editModalOverlay = document.getElementById('editUtilityModalOverlay');
+    const editUtilityForm = document.getElementById('editUtilityForm');
+    if (editModalOverlay) editModalOverlay.style.display = 'none';
+    if (editUtilityForm) editUtilityForm.reset();
+};
+
+window.updateUtility = async function(e) {
+    if (e) e.preventDefault();
+    
+    const editUtilityId = document.getElementById('editUtilityId');
+    const editUtilityDate = document.getElementById('editUtilityDate');
+    const editUtilityType = document.getElementById('editUtilityType');
+    const editUtilityAmount = document.getElementById('editUtilityAmount');
+    const editUtilityPaidBy = document.getElementById('editUtilityPaidBy');
+    const editUtilityNotes = document.getElementById('editUtilityNotes');
+    
+    if (!editUtilityId || !editUtilityId.value) {
+        showToast('Entry ID missing', 'error');
+        return;
+    }
+    
+    const id = editUtilityId.value;
+    
+    if (!editUtilityDate || !editUtilityDate.value) {
+        showToast('Select a date', 'error');
+        return;
+    }
+    
+    const dateObj = new Date(editUtilityDate.value);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const date = `${dateObj.getDate()}-${months[dateObj.getMonth()]}-${dateObj.getFullYear()}`;
+    
+    const updatedData = {
+        date: date,
+        type: editUtilityType.value,
+        amount: parseFloat(editUtilityAmount.value),
+        paidBy: editUtilityPaidBy.value,
+        notes: editUtilityNotes ? editUtilityNotes.value : ''
+    };
+    
+    try {
+        await db.collection('utilities').doc(id).update(updatedData);
+        window.closeEditUtilityModal();
+        showToast('Utility updated!', 'success');
+    } catch (error) {
+        console.error('❌ Update error:', error);
+        showToast('Failed to update', 'error');
+    }
+};
+
 // ===== REPORT FUNCTIONS (NEW) =====
 window.openUtilityReport = function() {
     const modalOverlay = document.getElementById('reportModalOverlay');
@@ -638,7 +723,7 @@ const generateUtilityReport = () => {
     if (!reportContent) return;
 
     const types = ['Electricity', 'Gas', 'Internet', 'Misc'];
-    let html = '<div style="overflow-x: auto;"><table class="payment-table" style="min-width: 100%;"><thead><tr><th>Type</th><th>Total Cost</th><th>Paid by Me</th><th>Paid by Roommate</th><th>My Share (Est.)</th></tr></thead><tbody>';
+    let html = '<div style="overflow-x: auto;"><table class="payment-table" style="min-width: 100%;"><thead><tr><th>Type</th><th>Total Cost</th><th>Paid by Me</th><th>Paid by Roommate</th><th>My Share (Est.)</th><th>Action</th></tr></thead><tbody>';
 
     types.forEach(type => {
         const items = utilityData.filter(u => u.type === type);
@@ -661,12 +746,15 @@ const generateUtilityReport = () => {
                 <td style="color: var(--success)">${formatCurrency(paidByMe)}</td>
                 <td style="color: var(--primary)">${formatCurrency(paidByRoommate)}</td>
                 <td style="font-weight:bold">${formatCurrency(myShare)}</td>
+                <td>
+                    <button class="btn-action" onclick="window.openEditUtilityModal('${items[0].id}')">Edit Latest</button>
+                </td>
             </tr>
         `;
     });
 
     if (html.indexOf('<tr>') === -1) {
-        html += '<tr><td colspan="5" style="text-align:center">No utility data found</td></tr>';
+        html += '<tr><td colspan="6" style="text-align:center">No utility data found</td></tr>';
     }
 
     html += '</tbody></table></div>';
@@ -1082,6 +1170,16 @@ const setupEventListeners = () => {
     const utilityForm = document.getElementById('utilityForm');
     if (utilityForm) utilityForm.addEventListener('submit', window.saveUtility);
     
+    // NEW: Edit Utility Modal Listeners
+    const btnCloseEditUtilityModal = document.getElementById('btnCloseEditUtilityModal');
+    if (btnCloseEditUtilityModal) btnCloseEditUtilityModal.addEventListener('click', window.closeEditUtilityModal);
+    
+    const btnCancelEditUtility = document.getElementById('btnCancelEditUtility');
+    if (btnCancelEditUtility) btnCancelEditUtility.addEventListener('click', window.closeEditUtilityModal);
+    
+    const editUtilityForm = document.getElementById('editUtilityForm');
+    if (editUtilityForm) editUtilityForm.addEventListener('submit', window.updateUtility);
+    
     // NEW: Report Modal Listeners
     const btnCloseReportModal = document.getElementById('btnCloseReportModal');
     if (btnCloseReportModal) btnCloseReportModal.addEventListener('click', window.closeUtilityReport);
@@ -1135,6 +1233,12 @@ const setupEventListeners = () => {
         if (e.target === utilityModalOverlay) window.closeUtilityModal();
     });
     
+    // NEW: Edit Utility Modal Overlay Click
+    const editUtilityModalOverlay = document.getElementById('editUtilityModalOverlay');
+    if (editUtilityModalOverlay) editUtilityModalOverlay.addEventListener('click', (e) => {
+        if (e.target === editUtilityModalOverlay) window.closeEditUtilityModal();
+    });
+    
     // NEW: Report Modal Overlay Click
     const reportModalOverlay = document.getElementById('reportModalOverlay');
     if (reportModalOverlay) reportModalOverlay.addEventListener('click', (e) => {
@@ -1154,6 +1258,7 @@ const setupEventListeners = () => {
             const notesModal = document.getElementById('notesModalOverlay');
             const bondModal = document.getElementById('bondModalOverlay');
             const utilityModal = document.getElementById('utilityModalOverlay');
+            const editUtilityModal = document.getElementById('editUtilityModalOverlay');
             const reportModal = document.getElementById('reportModalOverlay');
             const toast = document.getElementById('toast');
             
@@ -1163,6 +1268,7 @@ const setupEventListeners = () => {
             if (notesModal && notesModal.style.display === 'flex') window.closeNotesModal();
             if (bondModal && bondModal.style.display === 'flex') window.closeBondModal();
             if (utilityModal && utilityModal.style.display === 'flex') window.closeUtilityModal();
+            if (editUtilityModal && editUtilityModal.style.display === 'flex') window.closeEditUtilityModal();
             if (reportModal && reportModal.style.display === 'flex') window.closeUtilityReport();
             if (toast && toast.style.display === 'flex') toast.style.display = 'none';
         }
@@ -1193,6 +1299,7 @@ const init = async () => {
     const notesModalOverlay = document.getElementById('notesModalOverlay');
     const bondModalOverlay = document.getElementById('bondModalOverlay');
     const utilityModalOverlay = document.getElementById('utilityModalOverlay');
+    const editUtilityModalOverlay = document.getElementById('editUtilityModalOverlay'); // NEW
     const reportModalOverlay = document.getElementById('reportModalOverlay'); // NEW
     const toast = document.getElementById('toast');
     
@@ -1202,6 +1309,7 @@ const init = async () => {
     if (notesModalOverlay) notesModalOverlay.style.display = 'none';
     if (bondModalOverlay) bondModalOverlay.style.display = 'none';
     if (utilityModalOverlay) utilityModalOverlay.style.display = 'none';
+    if (editUtilityModalOverlay) editUtilityModalOverlay.style.display = 'none'; // NEW
     if (reportModalOverlay) reportModalOverlay.style.display = 'none'; // NEW
     if (toast) toast.style.display = 'none';
     
